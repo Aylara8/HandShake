@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mission-control">
+    <a href="/" style="color: var(--nasa-blue); text-decoration: none;"> << RETURN TO GALAXY </a>
+    
+    <div class="hud-overlay" style="margin-top: 20px;">
+        <div class="scanner-line"></div>
+        <h1 class="glitch-text">{{ planet.name }}</h1>
+        <p>COORDINATES: UNKNOWN | STATUS: ANALYZING</p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            <div class="data-card">
+                <h3>PLANETARY ARCHIVE</h3>
+                <p><strong>DISTANCE:</strong> {{ planet.distance }}</p>
+                <p>{{ planet.description }}</p>
+            </div>
+            <div class="data-card">
+                <h3>NASA FEED</h3>
+                <img src="{{ nasa_img }}" style="width: 100%; border: 1px solid var(--nasa-blue);">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

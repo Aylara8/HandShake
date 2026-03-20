@@ -1,0 +1,36 @@
+:root { --nasa-blue: #00d4ff; --dark: #020202; }
+
+body { margin: 0; background: var(--dark); color: white; font-family: 'Courier New', monospace; overflow: hidden; }
+
+/* Cinematic HUD Overlay */
+.hud-overlay {
+    position: relative;
+    border: 1px solid var(--nasa-blue);
+    background: rgba(0, 212, 255, 0.05);
+    backdrop-filter: blur(12px);
+    padding: 30px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 30px rgba(0, 212, 255, 0.1);
+}
+
+.glitch-text {
+    font-size: 3rem;
+    color: var(--nasa-blue);
+    text-shadow: 0 0 10px var(--nasa-blue);
+    margin: 0;
+}
+
+.data-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.6);
+    padding: 20px;
+    margin-top: 20px;
+    clip-path: polygon(0 0, 100% 0, 100% 85%, 90% 100%, 0 100%);
+}
+
+.scanner-line {
+    position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+    background: var(--nasa-blue);
+    animation: scan 4s linear infinite;
+}
+@keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
