@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golden Rules for Web Projects</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #3b82f6;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --accent: #f59e0b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background-color: var(--light);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+            margin-bottom: 40px;
+        }
+
+        .rule-card {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-left: 5px solid var(--secondary);
+            background: #f1f5f9;
+            transition: transform 0.2s;
+        }
+
+        .rule-card:hover {
+            transform: translateX(10px);
+            background: #e2e8f0;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+        }
+
+        h3 span {
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+
+        .tag {
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Golden Rules for Web Projects</h1>
+
+    <div class="rule-card">
+        <span class="tag">Performance</span>
+        <h3><span>1</span> The 3-Second Rule (LCP)</h3>
+        <p>Users won't wait. Main content must load within 2.5–3 seconds. Use <b>WebP/AVIF</b> images and <b>Lazy Loading</b> to keep it snappy.</p>
+    </div>
+
+    <div class="rule-card">
+        <span class="tag">Database</span>
+        <h3><span>2</span> Database Indexing</h3>
+        <p>Crucial for search. Always <b>index</b> columns used for filtering (price, category, dates) to avoid server lag as your data grows.</p>
+    </div>
+
+    <div class="rule-card">
+        <span class="tag">Efficiency</span>
+        <h3><span>3</span> Smart Caching</h3>
+        <p>Don't query the database twice for the same data. Use <b>Redis</b> to store sessions and frequent searches to reduce SQL load.</p>
+    </div>
+
+    <div class="rule-card">
+        <span class="tag">User Experience</span>
+        <h3><span>4</span> Mobile First Design</h3>
+        <p>Over 70% of rentals happen on phones. Design for <b>touch screens</b> first, then adapt for desktops. Keep the "Book Now" button accessible.</p>
+    </div>
+
+    <div class="rule-card">
+        <span class="tag">Reliability</span>
+        <h3><span>5</span> Transactional Integrity (ACID)</h3>
+        <p>Prevent double-booking. Use <b>SQL Transactions</b> to ensure a rental is either fully processed or not at all—no "ghost" bookings.</p>
+    </div>
+
+    <div class="rule-card">
+        <span class="tag">Architecture</span>
+        <h3><span>6</span> API Minimization</h3>
+        <p>Avoid sending 50 requests per page load. Consolidate your data into <b>single efficient requests</b> using HTTP/2 or HTTP/3 protocols.</p>
+    </div>
+
+    <div class="rule-card">
+        <span class="tag">Conversion</span>
+        <h3><span>7</span> Clean UX Path</h3>
+        <p>Reduce friction. The path from selecting an item to final confirmation should take <b>no more than 3 steps</b>.</p>
+    </div>
+
+    <footer>
+        Optimized for Rental Marketplaces & High-Performance Web Apps
+    </footer>
+</div>
+
+</body>
+</html>
