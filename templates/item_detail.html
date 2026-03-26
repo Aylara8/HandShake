@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}HandShake | {{ item.title }}{% endblock %}
+
+{% block content %}
+<div class="nav-container" style="padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+    <!-- Left: Image -->
+    <div style="border-radius: 24px; overflow: hidden; height: fit-content; border: 1px solid var(--border);">
+        <img src="{{ item.image_url }}" style="width: 100%; aspect-ratio: 1/1; object-fit: cover;">
+    </div>
+
+    <!-- Right: Info -->
+    <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+            <div>
+                <h1 style="font-size: 2rem; font-weight: 800; line-height: 1.2;">{{ item.title }}</h1>
+                <p style="color: var(--text-secondary); margin-top: 8px;"><i class="fas fa-map-marker-alt"></i> {{ item.loc }} • {{ item.category|capitalize }}</p>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">{{ item.price }} TMT</div>
+                <div style="color: var(--text-secondary); font-size: 0.9rem;">per {{ 'item' if item.type == 'sell' else 'day' }}</div>
+            </div>
+        </div>
+
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; background: var(--card-bg);">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <div style="width: 48px; height: 48px; background: #e5e7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #6b7280;">
+                    {{ item.owner.username[0].upper() }}
+                </div>
+                <div>
+                    <div style="font-weight: 700;">Hosted by <a href="{{ url_for('profile', user_id=item.owner.id) }}" style="color: var(--accent);">{{ item.owner.full_name or item.owner.username }}</a></div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);"><i class="fas fa-star"></i> {{ "%.1f"|format(item.owner.rating) }} rating</div>
+                </div>
+                {% if current_user.id != item.owner.id %}
+                <a href="{{ url_for('chat', recipient_id=item.owner.id) }}" style="margin-left: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">Message</a>
+                {% endif %}
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 16px;">
+                <h3 style="font-weight: 800; font-size: 1rem; margin-bottom: 8px;">Description</h3>
+                <p style="color: var(--text-secondary); line-height: 1.6;">{{ item.description or "No description provided." }}</p>
+            </div>
+        </div>
+
+        <!-- Rating Section -->
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg);">
+            <h3 style="font-weight: 800; font-size: 1.1rem; margin-bottom: 16px;">Product Reviews ({{ "%.1f"|format(item.rating) }} <i class="fas fa-star" style="color: #f59e0b;"></i>)</h3>
+            
+            {% if current_user.is_authenticated and current_user.id != item.owner.id %}
+            <form action="{{ url_for('rate_item', item_id=item.id) }}" method="POST" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border);">
+                <div style="margin-bottom: 12px;">
+                    <label style="font-weight: 700; font-size: 0.9rem;">Your Rating (1-5)</label>
+                    <div style="display: flex; gap: 10px; margin-top: 8px;">
+                        {% for i in range(1, 6) %}
+                        <input type="radio" name="rating" value="{{ i }}" id="star{{ i }}" required style="display: none;">
+                        <label for="star{{ i }}" style="cursor: pointer; font-size: 1.2rem; color: #d1d5db;"><i class="fas fa-star"></i></label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <textarea name="content" placeholder="Share your experience with this item..." required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-primary); margin-bottom: 12px;"></textarea>
+                <button type="submit" class="auth-btn" style="width: 100%;">Submit Review</button>
+            </form>
+            {% endif %}
+
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                {% for review in reviews %}
+                <div style="border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span style="font-weight: 700;">{{ review.reviewer.username }}</span>
+                        <span style="color: #f59e0b;"><i class="fas fa-star"></i> {{ review.rating }}</span>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary);">{{ review.content }}</p>
+                </div>
+                {% else %}
+                <p style="color: var(--text-secondary); text-align: center; padding: 20px;">No reviews for this product yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Simple star rating interaction
+    document.querySelectorAll('[id^="star"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const val = parseInt(e.target.value);
+            document.querySelectorAll('label[for^="star"]').forEach((label, idx) => {
+                label.style.color = (idx < val) ? '#f59e0b' : '#d1d5db';
+            });
+        });
+    });
+</script>
+{% endblock %}

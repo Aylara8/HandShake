@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}HandShake | Edit Profile{% endblock %}
+
+{% block content %}
+<div class="auth-container" style="max-width: 700px; margin: 40px auto;">
+    <div class="auth-header">
+        <h2 style="font-weight: 800; font-size: 1.8rem;">Edit Profile</h2>
+        <p style="color: var(--text-secondary);">Update your photo and personal details.</p>
+    </div>
+    
+    <form class="auth-form" action="/edit-profile" method="POST" enctype="multipart/form-data">
+        <!-- Profile Picture with Stable Container -->
+        <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 30px;">
+            <label style="font-weight: 700; margin-bottom: 15px;">Profile Picture</label>
+            
+            <div id="pfp-container" class="image-preview-wrapper" style="width: 180px; height: 180px; border-radius: 50%; aspect-ratio: 1/1;">
+                {% if current_user.profile_pic %}
+                    <img id="pfp-preview" src="{{ current_user.profile_pic }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                {% else %}
+                    <i id="pfp-placeholder" class="fas fa-user" style="font-size: 4rem; color: var(--text-secondary); opacity: 0.3;"></i>
+                    <img id="pfp-preview" style="display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                {% endif %}
+
+                <div id="camera-area" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; z-index: 10;">
+                    <video id="video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <button type="button" id="capture-btn" class="auth-btn" style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); padding: 5px 15px; font-size: 0.7rem; background: rgba(16, 185, 129, 0.9);">
+                        Capture
+                    </button>
+                </div>
+            </div>
+
+            <div id="upload-controls" style="display: flex; gap: 10px; width: 100%; max-width: 400px;">
+                <button type="button" id="start-camera" class="auth-btn" style="flex: 1; background: white; color: black; border: 1px solid var(--border); font-size: 0.85rem;">
+                    <i class="fas fa-camera"></i> Camera
+                </button>
+                <div style="flex: 1; position: relative; overflow: hidden;">
+                    <button type="button" class="auth-btn" style="width: 100%; background: #f3f4f6; color: black; border: 1px solid var(--border); font-size: 0.85rem;">
+                        <i class="fas fa-file-upload"></i> Upload
+                    </button>
+                    <input type="file" name="profile_pic" id="profile_pic_input" accept="image/*" style="position: absolute; top: 0; left: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;">
+                </div>
+            </div>
+            <input type="hidden" name="camera_image" id="camera_image">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group">
+                <label style="font-weight: 700;">Full Name</label>
+                <input type="text" name="full_name" value="{{ current_user.full_name or '' }}" required>
+            </div>
+            <div class="form-group">
+                <label style="font-weight: 700;">Location (City)</label>
+                <input type="text" name="region" value="{{ current_user.region or '' }}" required>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 20px;">
+            <label style="font-weight: 700;">About You (Bio)</label>
+            <textarea name="bio" placeholder="Tell the community about yourself..." style="min-height: 120px;">{{ current_user.bio or '' }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 15px; margin-top: 30px;">
+            <button type="submit" class="auth-btn" style="flex: 2;">Save Changes</button>
+            <a href="{{ url_for('profile', user_id=current_user.id) }}" class="auth-btn" style="flex: 1; background: #f3f4f6; color: black; text-align: center; text-decoration: none;">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const startCameraBtn = document.getElementById('start-camera');
+    const cameraArea = document.getElementById('camera-area');
+    const cameraImageInput = document.getElementById('camera_image');
+    const fileInput = document.getElementById('profile_pic_input');
+    const pfpPreview = document.getElementById('pfp-preview');
+    const placeholder = document.getElementById('pfp-placeholder');
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+            video.srcObject = stream;
+            cameraArea.style.display = 'block';
+            if(placeholder) placeholder.style.display = 'none';
+        } catch (err) {
+            alert("Camera access denied.");
+        }
+    }
+
+    startCameraBtn.addEventListener('click', startCamera);
+
+    captureBtn.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        const imageData = canvas.toDataURL('image/png');
+        cameraImageInput.value = imageData;
+        pfpPreview.src = imageData;
+        pfpPreview.style.display = 'block';
+        cameraArea.style.display = 'none';
+        
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                pfpPreview.src = event.target.result;
+                pfpPreview.style.display = 'block';
+                if(placeholder) placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+});
+</script>
+{% endblock %}

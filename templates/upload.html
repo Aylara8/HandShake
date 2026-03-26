@@ -3,54 +3,173 @@
 {% block title %}HandShake | Post Item{% endblock %}
 
 {% block content %}
-<div class="auth-container" style="max-width: 600px;">
+<div class="auth-container" style="max-width: 600px; margin: 40px auto;">
     <div class="auth-header">
-        <h2>List your item on HandShake</h2>
-        <p style="color: var(--text-secondary); margin-bottom: 24px;">Share your things with the community</p>
+        <h2 style="font-weight: 800; font-size: 1.8rem;">List your item</h2>
+        <p style="color: var(--text-secondary);">Fill in the details to start renting.</p>
     </div>
-    <form class="auth-form" action="/upload" method="POST" enctype="multipart/form-data">
+    
+    <form class="auth-form" action="/upload" method="POST" enctype="multipart/form-data" id="upload-form">
         <div class="form-group">
-            <label style="font-weight: 600; margin-bottom: 4px;">What are you listing?</label>
+            <label style="font-weight: 700;">What are you listing?</label>
             <input type="text" name="title" placeholder="e.g. PlayStation 5, Canon EOS R5" required>
         </div>
-        <div class="form-group">
-            <label style="font-weight: 600; margin-bottom: 4px;">Category</label>
-            <select name="category" style="padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; background: white;">
-                <option value="hobbies">Hobbies (PS5, Skate, Canon...)</option>
-                <option value="tech">Tech</option>
-                <option value="cars">Cars</option>
-                <option value="houses">Houses</option>
-                <option value="tools">Tools</option>
-                <option value="books">Books</option>
-            </select>
-        </div>
-        <div style="display: flex; gap: 16px;">
-            <div class="form-group" style="flex: 1;">
-                <label style="font-weight: 600; margin-bottom: 4px;">Price (TMT)</label>
-                <input type="number" name="price" placeholder="0" required>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label style="font-weight: 700;">Category</label>
+                <select name="category" required>
+                    <option value="hobbies">Hobbies</option>
+                    <option value="tech">Tech</option>
+                    <option value="cars">Cars</option>
+                    <option value="houses">Houses</option>
+                    <option value="tools">Tools</option>
+                    <option value="books">Books</option>
+                </select>
             </div>
-            <div class="form-group" style="flex: 1;">
-                <label style="font-weight: 600; margin-bottom: 4px;">Transaction Type</label>
-                <select name="type" style="padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; background: white;">
+            <div class="form-group">
+                <label style="font-weight: 700;">Type</label>
+                <select name="type">
                     <option value="rent">Rent</option>
                     <option value="sell">Sell</option>
-                    <option value="exchange">Exchange (Books)</option>
+                    <option value="exchange">Exchange</option>
                 </select>
             </div>
         </div>
-        <div class="form-group">
-            <label style="font-weight: 600; margin-bottom: 4px;">Location</label>
-            <input type="text" name="loc" placeholder="e.g. Ashgabat, Berkarar" required>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label style="font-weight: 700;">Price (TMT)</label>
+                <input type="number" name="price" placeholder="0" required>
+            </div>
+            <div class="form-group">
+                <label style="font-weight: 700;">Location</label>
+                <input type="text" name="loc" placeholder="City, District" required>
+            </div>
         </div>
+
         <div class="form-group">
-            <label style="font-weight: 600; margin-bottom: 4px;">Description</label>
-            <textarea name="description" placeholder="Tell us about your item..." style="padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; min-height: 120px; font-family: inherit;"></textarea>
+            <label style="font-weight: 700;">Description</label>
+            <textarea name="description" placeholder="Tell us more about the item..." style="min-height: 100px;"></textarea>
         </div>
-        <div class="form-group">
-            <label style="font-weight: 600; margin-bottom: 4px;">Photo Upload (Max 5MB)</label>
-            <input type="file" name="item_image" accept="image/*" required style="padding: 8px;">
+
+        <!-- Photo Section with Stable Container -->
+        <div class="form-group" style="margin-top: 10px;">
+            <label style="font-weight: 700;">Item Photo</label>
+            
+            <div id="preview-container" class="image-preview-wrapper">
+                <i id="pfp-placeholder" class="fas fa-camera" style="font-size: 3rem; color: var(--text-secondary); opacity: 0.3;"></i>
+                <img id="item-preview" style="display: none;">
+                
+                <div id="camera-area" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;">
+                    <video id="video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <button type="button" id="capture-btn" class="auth-btn" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); padding: 10px 20px; font-size: 0.8rem; background: rgba(16, 185, 129, 0.9);">
+                        Capture
+                    </button>
+                </div>
+            </div>
+
+            <div id="upload-controls" style="display: flex; gap: 10px;">
+                <button type="button" id="start-camera" class="auth-btn" style="flex: 1; background: white; color: black; border: 1px solid var(--border); font-size: 0.9rem;">
+                    <i class="fas fa-camera"></i> Use Camera
+                </button>
+                <div style="flex: 1; position: relative; overflow: hidden;">
+                    <button type="button" class="auth-btn" style="width: 100%; background: #f3f4f6; color: black; border: 1px solid var(--border); font-size: 0.9rem;">
+                        <i class="fas fa-file-upload"></i> Upload File
+                    </button>
+                    <input type="file" name="item_image" id="item_image" accept="image/*" style="position: absolute; top: 0; left: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;">
+                </div>
+            </div>
+            
+            <button type="button" id="reset-photo" style="display: none; margin-top: 10px; background: none; border: none; color: #ef4444; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-align: center; width: 100%;">
+                <i class="fas fa-redo"></i> Change Photo
+            </button>
+            
+            <input type="hidden" name="camera_image" id="camera_image">
         </div>
-        <button type="submit" class="auth-btn">HandShake It!</button>
+
+        <button type="submit" class="auth-btn" style="margin-top: 25px; width: 100%; padding: 16px;">Post to Marketplace</button>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const startCameraBtn = document.getElementById('start-camera');
+    const cameraArea = document.getElementById('camera-area');
+    const cameraImageInput = document.getElementById('camera_image');
+    const fileInput = document.getElementById('item_image');
+    const previewContainer = document.getElementById('preview-container');
+    const itemPreview = document.getElementById('item-preview');
+    const placeholder = document.getElementById('pfp-placeholder');
+    const resetBtn = document.getElementById('reset-photo');
+    const uploadControls = document.getElementById('upload-controls');
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            cameraArea.style.display = 'block';
+            placeholder.style.display = 'none';
+        } catch (err) {
+            alert("Camera access denied.");
+        }
+    }
+
+    startCameraBtn.addEventListener('click', startCamera);
+
+    captureBtn.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        const imageData = canvas.toDataURL('image/png');
+        cameraImageInput.value = imageData;
+        itemPreview.src = imageData;
+        itemPreview.style.display = 'block';
+        previewContainer.classList.add('active');
+        
+        cameraArea.style.display = 'none';
+        uploadControls.style.display = 'none';
+        resetBtn.style.display = 'block';
+        
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                itemPreview.src = event.target.result;
+                itemPreview.style.display = 'block';
+                placeholder.style.display = 'none';
+                previewContainer.classList.add('active');
+                uploadControls.style.display = 'none';
+                resetBtn.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    resetBtn.addEventListener('click', () => {
+        itemPreview.style.display = 'none';
+        placeholder.style.display = 'block';
+        previewContainer.classList.remove('active');
+        uploadControls.style.display = 'flex';
+        resetBtn.style.display = 'none';
+        cameraImageInput.value = '';
+        fileInput.value = '';
+        cameraArea.style.display = 'none';
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+    });
+});
+</script>
 {% endblock %}

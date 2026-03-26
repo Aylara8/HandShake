@@ -3,9 +3,9 @@
 {% block title %}HandShake | Rent Anything, Anywhere{% endblock %}
 
 {% block content %}
-<div class="hero-section" style="padding: 120px 0; text-align: center; background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(255, 255, 255, 1) 100%);">
+<div class="hero-section" style="padding: 120px 0; text-align: center; background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, var(--bg) 100%);">
     <div class="nav-container">
-        <h1 style="font-size: 4rem; font-weight: 800; letter-spacing: -2px; line-height: 1; margin-bottom: 24px;">
+        <h1 style="font-size: 4rem; font-weight: 800; letter-spacing: -2px; line-height: 1.1; margin-bottom: 24px; color: var(--text-primary);">
             Rent everything. <br>
             <span style="color: var(--accent);">One HandShake away.</span>
         </h1>
@@ -13,46 +13,37 @@
             The world's first secure, peer-to-peer rental platform for hobbies, cars, houses, and tools.
             Built with KYC-verified security for total peace of mind.
         </p>
-        
-        <div style="display: flex; gap: 20px; justify-content: center;">
-            <a href="/register" class="auth-btn" style="padding: 16px 40px; font-size: 1.1rem; text-decoration: none; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2);">
-                <i class="fas fa-user-shield"></i> Sign Up
-            </a>
-            <a href="/login" style="padding: 16px 40px; font-size: 1.1rem; border: 1px solid var(--accent); border-radius: 12px; font-weight: 700; color: var(--accent); transition: 0.3s; text-decoration: none;" onmouseover="this.style.background='rgba(16, 185, 129, 0.05)'" onmouseout="this.style.background='none'">
-                <i class="fas fa-sign-in-alt"></i> Sign In
-            </a>
-            <a href="/market" style="padding: 16px 40px; font-size: 1.1rem; border: 1px solid var(--border); border-radius: 12px; font-weight: 700; color: var(--text-primary); transition: 0.3s; text-decoration: none;" onmouseover="this.style.background='rgba(0,0,0,0.02)'" onmouseout="this.style.background='none'">
-                <i class="fas fa-shopping-bag"></i> Browse Market
-            </a>
-        </div>
     </div>
 </div>
 
 <div class="nav-container" style="padding: 80px 40px;">
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px;">
-        <div style="padding: 32px; border: 1px solid var(--border); border-radius: 24px; text-align: center;">
-            <div style="font-size: 40px; color: var(--accent); margin-bottom: 20px;"><i class="fas fa-lock"></i></div>
-            <h3 style="font-weight: 800; margin-bottom: 12px;">Verified KYC</h3>
-            <p style="color: var(--text-secondary);">Every member on HandShake is verified with a real passport scan, ensuring a safe community for all.</p>
+        <!-- Verified KYC -->
+        <div style="padding: 32px; border: 1px solid var(--border); border-radius: 24px; text-align: center; background: var(--card-bg);">
+            <div style="font-size: 48px; color: var(--accent); margin-bottom: 24px;"><i class="fas fa-lock"></i></div>
+            <h3 style="font-weight: 800; margin-bottom: 16px; color: var(--text-primary);">Verified KYC</h3>
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">Every member on HandShake is verified with a real passport scan, ensuring a safe community for all.</p>
         </div>
-        <div style="padding: 32px; border: 1px solid var(--border); border-radius: 24px; text-align: center;">
-            <div style="font-size: 40px; color: var(--accent); margin-bottom: 20px;"><i class="fas fa-hand-holding-usd"></i></div>
-            <h3 style="font-weight: 800; margin-bottom: 12px;">Earn from Assets</h3>
-            <p style="color: var(--text-secondary);">Turn your idle items like cameras, PS5s, or tools into a steady stream of passive income.</p>
+        
+        <!-- Earn from Assets -->
+        <div style="padding: 32px; border: 1px solid var(--border); border-radius: 24px; text-align: center; background: var(--card-bg);">
+            <div style="font-size: 48px; color: var(--accent); margin-bottom: 24px;"><i class="fas fa-hand-holding-usd"></i></div>
+            <h3 style="font-weight: 800; margin-bottom: 16px; color: var(--text-primary);">Earn from Assets</h3>
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">Turn your idle items like cameras, PS5s, or tools into a steady stream of passive income.</p>
         </div>
-        <div style="padding: 32px; border: 1px solid var(--border); border-radius: 24px; text-align: center;">
-            <div style="font-size: 40px; color: var(--accent); margin-bottom: 20px;"><i class="fas fa-globe-americas"></i></div>
-            <h3 style="font-weight: 800; margin-bottom: 12px;">Eco-Friendly</h3>
-            <p style="color: var(--text-secondary);">By renting instead of buying, you help reduce electronic waste and promote a sustainable economy.</p>
+        
+        <!-- Eco-Friendly -->
+        <div style="padding: 32px; border: 1px solid var(--border); border-radius: 24px; text-align: center; background: var(--card-bg);">
+            <div style="font-size: 48px; color: var(--accent); margin-bottom: 24px;"><i class="fas fa-globe-americas"></i></div>
+            <h3 style="font-weight: 800; margin-bottom: 16px; color: var(--text-primary);">Eco-Friendly</h3>
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">By renting instead of buying, you help reduce electronic waste and promote a sustainable economy.</p>
         </div>
     </div>
 </div>
 
-<div style="background: var(--accent); padding: 80px 0; color: white; text-align: center;">
-    <h2 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 20px;">Ready for your first HandShake?</h2>
-    <p style="margin-bottom: 40px; font-size: 1.1rem; opacity: 0.9;">Join thousands of users renting and sharing their world securely.</p>
-    <a href="/register" style="background: white; color: var(--accent); padding: 16px 40px; border-radius: 12px; font-weight: 800; text-decoration: none; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
-        Sign Up Now
-    </a>
+<!-- Green Banner at the Bottom -->
+<div style="background: var(--accent); padding: 80px 0; color: white; text-align: center; margin-top: 40px;">
+    <h2 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 20px; color: white;">Safe. Secure. Sustainable.</h2>
+    <p style="margin-bottom: 0; font-size: 1.1rem; opacity: 0.9; color: white;">The future of sharing is here.</p>
 </div>
 {% endblock %}

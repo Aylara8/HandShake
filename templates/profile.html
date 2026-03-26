@@ -1,40 +1,131 @@
 {% extends "base.html" %}
 
-{% block title %}HandShake | Profile{% endblock %}
+{% block title %}HandShake | {{ user.username }}'s Profile{% endblock %}
 
 {% block content %}
-<div class="nav-container" style="margin-top: 40px; display: flex; gap: 40px;">
-    <aside style="flex: 1; max-width: 300px; padding: 24px; border: 1px solid var(--border); border-radius: 12px; height: fit-content;">
-        <div style="text-align: center; margin-bottom: 24px;">
-            <div style="font-size: 64px; color: var(--accent);"><i class="fas fa-user-shield"></i></div>
-            <h2 style="margin-top: 12px; font-weight: 800;">{{ current_user.full_name or current_user.username }}</h2>
-            <p style="color: var(--text-secondary);"><i class="fas fa-map-marker-alt"></i> {{ current_user.region }} | <i class="fas fa-birthday-cake"></i> Age: {{ current_user.age or 'Verified' }}</p>
-            <div style="display: inline-block; background: #ecfdf5; color: #059669; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin-top: 8px;">
-                <i class="fas fa-check-circle"></i> KYC Verified
+<div class="nav-container" style="padding: 40px; max-width: 1000px;">
+    <!-- Profile Header -->
+    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 24px; overflow: hidden; margin-bottom: 30px; box-shadow: 0 4px 15px var(--shadow);">
+        <div style="height: 180px; background: linear-gradient(135deg, var(--accent), #059669);"></div>
+        <div style="padding: 0 40px 40px; position: relative;">
+            <div style="width: 160px; height: 160px; border-radius: 50%; border: 6px solid var(--card-bg); background: #e5e7eb; position: absolute; top: -80px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                {% if user.profile_pic %}
+                    <img src="{{ user.profile_pic }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 4.5rem; font-weight: 800; color: #6b7280;">
+                        {{ user.username[0].upper() }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-top: 90px; display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-primary);">{{ user.full_name or user.username }}</h1>
+                    <p style="color: var(--text-secondary); font-size: 1.1rem; margin-top: 4px;">
+                        <i class="fas fa-map-marker-alt"></i> {{ user.region }} • Joined {{ user.items|length }} items
+                    </p>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-top: 15px;">
+                        <span style="background: rgba(16, 185, 129, 0.1); color: var(--accent); padding: 6px 16px; border-radius: 100px; font-size: 0.85rem; font-weight: 700;">
+                            <i class="fas fa-star"></i> {{ "%.1f"|format(user.rating) }} Rating
+                        </span>
+                        <span style="background: rgba(16, 185, 129, 0.1); color: var(--accent); padding: 6px 16px; border-radius: 100px; font-size: 0.85rem; font-weight: 700;">
+                            <i class="fas fa-check-circle"></i> KYC Verified
+                        </span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.id == user.id %}
+                            <a href="{{ url_for('edit_profile') }}" class="auth-btn" style="background: #f3f4f6; color: black; border: 1px solid #d1d5db;"><i class="fas fa-edit"></i> Edit Profile</a>
+                        {% else %}
+                            {% if is_blocked %}
+                                <a href="{{ url_for('unblock_user', user_id=user.id) }}" class="auth-btn" style="background: #ef4444;"><i class="fas fa-unlock"></i> Unblock</a>
+                            {% else %}
+                                {% if chat_request %}
+                                    {% if chat_request.status == 'accepted' %}
+                                        <a href="{{ url_for('chat', recipient_id=user.id) }}" class="auth-btn"><i class="fas fa-comments"></i> Send Message</a>
+                                    {% elif chat_request.status == 'pending' %}
+                                        {% if chat_request.sender_id == current_user.id %}
+                                            <button class="auth-btn" disabled style="opacity: 0.7;">Request Pending</button>
+                                        {% else %}
+                                            <a href="{{ url_for('chat') }}" class="auth-btn">Respond to Request</a>
+                                        {% endif %}
+                                    {% endif %}
+                                {% else %}
+                                    <a href="{{ url_for('send_chat_request', recipient_id=user.id) }}" class="auth-btn"><i class="fas fa-paper-plane"></i> Request Chat</a>
+                                {% endif %}
+                                <a href="{{ url_for('block_user', user_id=user.id) }}" class="auth-btn" style="background: #f3f4f6; color: #ef4444; border: 1px solid #ef4444;" onclick="return confirm('Block this user?')"><i class="fas fa-ban"></i> Block</a>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 25px;">
+                <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 12px;">About</h3>
+                <p style="color: var(--text-primary); line-height: 1.6; font-size: 1rem;">
+                    {{ user.bio or "This user is a proud member of the HandShake community but hasn't written a bio yet." }}
+                </p>
             </div>
         </div>
-        <div class="dropdown-divider"></div>
-        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px;">
-            <a href="#" style="font-weight: 600;"><i class="fas fa-cog" style="margin-right: 12px;"></i> Account Settings</a>
-            <a href="#" style="font-weight: 600;"><i class="fas fa-history" style="margin-right: 12px;"></i> History</a>
-            <a href="/upload" style="font-weight: 600; color: var(--accent);"><i class="fas fa-plus" style="margin-right: 12px;"></i> Post New Item</a>
-        </div>
-    </aside>
+    </div>
 
-    <div style="flex: 3;">
-        <h2 style="margin-bottom: 24px;">Your Items</h2>
-        <div class="product-grid" style="padding: 0; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
-            {% for item in items %}
-            <div class="hs-card">
-                <div class="card-img-wrapper" style="aspect-ratio: 1/1;">
-                    <img src="{{ item.image_url }}" alt="{{ item.title }}">
+    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 30px;">
+        <!-- Listings -->
+        <div>
+            <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px; padding: 30px; box-shadow: 0 4px 12px var(--shadow);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                    <h3 style="font-weight: 800; font-size: 1.3rem;">Listings</h3>
+                    <span style="color: var(--text-secondary); font-weight: 600;">{{ user.items|length }} items total</span>
                 </div>
-                <div class="card-content">
-                    <h3>{{ item.title }}</h3>
-                    <p class="price">{{ item.price }} TMT {% if item.type == 'rent' %}<span>/ day</span>{% endif %}</p>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px;">
+                    {% for item in user.items %}
+                    <a href="{{ url_for('item_detail', item_id=item.id) }}" class="hs-card" style="border: 1px solid var(--border); transition: transform 0.2s;">
+                        <div style="aspect-ratio: 1/1; overflow: hidden; border-radius: 12px;">
+                            <img src="{{ item.image_url }}" style="width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+                        <div style="padding: 15px;">
+                            <div style="font-weight: 800; font-size: 0.95rem; margin-bottom: 5px;">{{ item.title }}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="color: var(--accent); font-weight: 800;">{{ item.price }} TMT</span>
+                                <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-star" style="color: #f59e0b;"></i> {{ "%.1f"|format(item.rating) }}</span>
+                            </div>
+                        </div>
+                    </a>
+                    {% else %}
+                    <p style="color: var(--text-secondary); grid-column: 1/-1; text-align: center; padding: 40px;">No items listed yet.</p>
+                    {% endfor %}
                 </div>
             </div>
-            {% endfor %}
+        </div>
+
+        <!-- Reviews -->
+        <div>
+            <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px; padding: 30px; box-shadow: 0 4px 12px var(--shadow);">
+                <h3 style="font-weight: 800; font-size: 1.3rem; margin-bottom: 25px;">Community Feedback</h3>
+                
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    {% for review in reviews %}
+                    <div style="padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="{{ review.reviewer.profile_pic or 'https://ui-avatars.com/api/?name=' + review.reviewer.username }}" style="width: 32px; height: 32px; border-radius: 50%;">
+                                <span style="font-weight: 700; font-size: 0.9rem;">{{ review.reviewer.username }}</span>
+                            </div>
+                            <span style="color: #f59e0b; font-weight: 700;"><i class="fas fa-star"></i> {{ review.rating }}</span>
+                        </div>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; font-style: italic;">"{{ review.content }}"</p>
+                    </div>
+                    {% else %}
+                    <div style="text-align: center; padding: 40px 0;">
+                        <i class="fas fa-feather" style="font-size: 2rem; color: var(--accent); opacity: 0.2; margin-bottom: 10px;"></i>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">No reviews yet. Be the first to trade!</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -38,7 +38,7 @@
 
 <div class="product-grid">
     {% for item in items %}
-    <div class="hs-card" data-category="{{ item.category }}">
+    <a href="{{ url_for('item_detail', item_id=item.id) }}" class="hs-card" data-category="{{ item.category }}" style="text-decoration: none; color: inherit;">
         <div class="card-img-wrapper">
             <span class="badge">{{ item.type.upper() }}</span>
             <img src="{{ item.image_url or 'https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=60' }}" alt="{{ item.title }}">
@@ -46,9 +46,12 @@
         <div class="card-content">
             <h3>{{ item.title }}</h3>
             <p class="location">{{ item.loc or 'Ashgabat' }}</p>
-            <p class="price">{{ item.price }} TMT {% if item.type == 'rent' %}<span>/ day</span>{% endif %}</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                <p class="price">{{ item.price }} TMT {% if item.type == 'rent' %}<span>/ day</span>{% endif %}</p>
+                <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-star" style="color: #f59e0b;"></i> {{ "%.1f"|format(item.rating) }}</span>
+            </div>
         </div>
-    </div>
+    </a>
     {% endfor %}
 </div>
 {% endblock %}
