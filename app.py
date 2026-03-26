@@ -85,7 +85,8 @@ with app.app_context():
 
 @app.route('/')
 def dashboard():
-    return render_template('dashboard.html')
+    all_items = Item.query.order_by(Item.id.desc()).all()
+    return render_template('dashboard.html', items=all_items)
 
 @app.route('/market')
 def index():
@@ -175,6 +176,20 @@ def upload():
 @login_required
 def logout():
     logout_user(); return redirect(url_for('index'))
+
+
+@app.route('/profile')
+@login_required
+def profile():
+    # Fetch only items uploaded by the logged-in user
+    user_items = Item.query.filter_by(user_id=current_user.id).all()
+    
+    # Debugging: Print to console so you can see if items are actually found
+    print(f"DEBUG: Found {len(user_items)} items for user {current_user.username}")
+    
+    return render_template('profile.html', items=user_items)
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
