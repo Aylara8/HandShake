@@ -104,6 +104,7 @@ def login():
         flash('Invalid email or password')
     return render_template('login.html')
 
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -114,39 +115,31 @@ def register():
         
         passport_data = request.form.get('passport_image')
         if passport_data:
+            # Create folder if it doesn't exist
+            if not os.path.exists(app.config['UPLOAD_FOLDER']):
+                os.makedirs(app.config['UPLOAD_FOLDER'])
+
             filename = secure_filename(f"{email}_passport.png")
             passport_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            # Save the base64 image
             with open(passport_path, "wb") as fh:
                 fh.write(base64.b64decode(passport_data.split(',')[1]))
             
             new_user = User(
-                username=email, full_name=request.form.get('full_name'),
-                email=email, password_hash=generate_password_hash(request.form.get('password'), method='scrypt'),
-                region=request.form.get('region'), age=int(request.form.get('age') or 0), passport_img=filename
+                username=email, 
+                full_name=request.form.get('full_name'),
+                email=email, 
+                password_hash=generate_password_hash(request.form.get('password'), method='scrypt'),
+                region=request.form.get('region'), 
+                age=int(request.form.get('age') or 0), 
+                passport_img=filename
             )
             db.session.add(new_user)
             db.session.commit()
             return redirect(url_for('login'))
+            
     return render_template('register.html')
-
-@app.route('/process-passport', methods=['POST'])
-def process_passport():
-    data = request.json
-    image_data = base64.b64decode(data['image'].split(',')[1])
-    image = Image.open(BytesIO(image_data))
-    full_name, age = "John Doe", 30
-    if pytesseract:
-        try:
-            text = pytesseract.image_to_string(image)
-            full_name, age = extract_passport_data(text)
-        except: pass
-    return jsonify({'full_name': full_name, 'age': age})
-
-@app.route('/profile')
-@login_required
-def profile():
-    user_items = Item.query.filter_by(user_id=current_user.id).all()
-    return render_template('profile.html', items=user_items)
 
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -154,18 +147,28 @@ def upload():
     if request.method == 'POST':
         file = request.files.get('item_image')
         if file and file.filename != '':
+            # Create folder if it doesn't exist
+            if not os.path.exists(app.config['UPLOAD_FOLDER_ITEMS']):
+                os.makedirs(app.config['UPLOAD_FOLDER_ITEMS'])
+
             filename = secure_filename(f"{current_user.id}_{datetime.now().timestamp()}_{file.filename}")
             file_path = os.path.join(app.config['UPLOAD_FOLDER_ITEMS'], filename)
             file.save(file_path)
+            
             new_item = Item(
-                title=request.form.get('title'), price=request.form.get('price'),
-                type=request.form.get('type'), loc=request.form.get('loc'),
+                title=request.form.get('title'), 
+                price=request.form.get('price'),
+                type=request.form.get('type'), 
+                loc=request.form.get('loc'),
+                # Adjusting image_url to point correctly to the subfolder
                 image_url=url_for('static', filename=f'uploads/items/{filename}'),
-                category=request.form.get('category'), user_id=current_user.id
+                category=request.form.get('category'), 
+                user_id=current_user.id
             )
             db.session.add(new_item)
             db.session.commit()
             return redirect(url_for('index'))
+            
     return render_template('upload.html')
 
 @app.route('/logout')
