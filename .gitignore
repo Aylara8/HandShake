@@ -19,6 +19,8 @@ ENV/
 .idea/
 
 # Local app data
+.env
+.env.*
 instance/*.db
 instance/*.sqlite3
 *.db

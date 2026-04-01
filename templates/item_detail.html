@@ -3,8 +3,40 @@
 {% block title %}HandShake | {{ item.title }}{% endblock %}
 
 {% block content %}
+<div
+    id="ai-expert-sidebar"
+    class="ai-expert-sidebar"
+    data-expert-query="{{ item.title }}. {{ item.description or '' }}"
+>
+    <div class="ai-expert-header">
+        <span class="ai-expert-eyebrow">Live Expert</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+            <h3>Ask how to learn or set it up</h3>
+            <button type="button" id="ai-expert-close" class="ai-expert-close" aria-label="Close AI chat">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="ai-expert-status">Nothing runs until you ask.</div>
+    <div class="ai-expert-actions">
+        <button type="button" class="ai-quick-action" data-expert-question="Teach me the basics of this item.">Learn this item</button>
+        <button type="button" class="ai-quick-action" data-expert-question="How do I set up this item safely?">How to set it up</button>
+    </div>
+    <div class="ai-chat-thread" id="ai-chat-thread"></div>
+    <form id="ai-expert-form" class="ai-expert-form">
+        <input id="ai-expert-input" type="text" placeholder="Ask about setup, usage, or first steps">
+        <button type="submit" class="auth-btn">Ask AI</button>
+    </form>
+</div>
+
+<button type="button" id="ai-expert-launcher" class="ai-expert-launcher">AI chat</button>
+
+<div id="cyber-grid-overlay" class="cyber-grid-overlay"></div>
+<div id="magic-notes-layer" class="magic-notes-layer"></div>
+<div id="spark-burst-layer" class="spark-burst-layer"></div>
+
 <div class="nav-container item-detail-layout" style="padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-    <div style="border-radius: 24px; overflow: hidden; height: fit-content; border: 1px solid var(--border);">
+    <div id="product-image-shell" style="border-radius: 24px; overflow: hidden; height: fit-content; border: 1px solid var(--border);">
         <img src="{{ item.image_url }}" style="width: 100%; aspect-ratio: 1/1; object-fit: cover;">
     </div>
 
@@ -12,7 +44,7 @@
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
             <div>
                 <h1 style="font-size: 2rem; font-weight: 800; line-height: 1.2;">{{ item.title }}</h1>
-                <p style="color: var(--text-secondary); margin-top: 8px;"><i class="fas fa-map-marker-alt"></i> {{ item.loc }} | {{ item.category|capitalize }}</p>
+                <p style="color: var(--text-secondary); margin-top: 8px;"><i class="fas fa-map-marker-alt"></i> {{ item.location_label }} | {{ item.category|capitalize }}</p>
             </div>
             <div style="text-align: right;">
                 <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">{{ item.price }} TMT</div>
@@ -36,7 +68,15 @@
                     <div style="font-size: 0.85rem; color: var(--text-secondary);"><i class="fas fa-star"></i> {{ "%.1f"|format(item.owner.rating) }} rating</div>
                 </div>
                 {% if current_user.is_authenticated and current_user.id != item.owner.id %}
-                <a href="{{ url_for('send_chat_request', recipient_id=item.owner.id) }}" style="margin-left: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">Message</a>
+                    {% if chat_state == 'accepted' %}
+                    <a href="{{ url_for('chat', recipient_id=item.owner.id) }}" style="margin-left: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">Open Chat</a>
+                    {% elif chat_state == 'outgoing_pending' %}
+                    <a href="{{ url_for('profile', user_id=item.owner.id) }}" style="margin-left: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">Request Pending</a>
+                    {% elif chat_state == 'incoming_pending' and chat_request %}
+                    <a href="{{ url_for('accept_chat_request', request_id=chat_request.id) }}" style="margin-left: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">Accept Chat Request</a>
+                    {% else %}
+                    <a href="{{ url_for('send_chat_request', recipient_id=item.owner.id) }}" style="margin-left: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">Request Chat</a>
+                    {% endif %}
                 {% endif %}
                 {% else %}
                 <div>

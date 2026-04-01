@@ -43,8 +43,28 @@
                 <input type="number" name="price" placeholder="0" required>
             </div>
             <div class="form-group">
-                <label style="font-weight: 700;">Location</label>
-                <input type="text" name="loc" placeholder="City, District" required>
+                <label style="font-weight: 700;">Velayat / City</label>
+                <select id="upload-velayat" required>
+                    <option value="">Select velayat</option>
+                    {% for velayat in location_tree %}
+                    <option value="{{ velayat.id }}">{{ velayat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label style="font-weight: 700;">District</label>
+                <select id="upload-district" required>
+                    <option value="">Select district</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label style="font-weight: 700;">Neighborhood / Street</label>
+                <select name="neighborhood_id" id="upload-neighborhood" required>
+                    <option value="">Select neighborhood or street</option>
+                </select>
             </div>
         </div>
 
@@ -95,6 +115,10 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const locationTree = {{ location_tree|tojson }};
+    const velayatSelect = document.getElementById('upload-velayat');
+    const districtSelect = document.getElementById('upload-district');
+    const neighborhoodSelect = document.getElementById('upload-neighborhood');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('capture-btn');
@@ -107,6 +131,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const placeholder = document.getElementById('pfp-placeholder');
     const resetBtn = document.getElementById('reset-photo');
     const uploadControls = document.getElementById('upload-controls');
+
+    function populateSelect(select, options, placeholder) {
+        select.innerHTML = '';
+        const placeholderOption = document.createElement('option');
+        placeholderOption.value = '';
+        placeholderOption.textContent = placeholder;
+        select.appendChild(placeholderOption);
+
+        options.forEach((option) => {
+            const element = document.createElement('option');
+            element.value = option.id;
+            element.textContent = option.name;
+            select.appendChild(element);
+        });
+    }
+
+    function syncDistricts() {
+        const velayat = locationTree.find((entry) => String(entry.id) === velayatSelect.value);
+        const districts = velayat ? velayat.districts : [];
+        populateSelect(districtSelect, districts, 'Select district');
+        syncNeighborhoods();
+    }
+
+    function syncNeighborhoods() {
+        const velayat = locationTree.find((entry) => String(entry.id) === velayatSelect.value);
+        const district = velayat && districtSelect.value
+            ? velayat.districts.find((entry) => String(entry.id) === districtSelect.value)
+            : null;
+        const neighborhoods = district ? district.neighborhoods : [];
+        const placeholderText = velayat && velayat.name === 'Ashgabat'
+            ? 'Select street or avenue'
+            : 'Select neighborhood';
+        populateSelect(neighborhoodSelect, neighborhoods, placeholderText);
+    }
+
+    velayatSelect.addEventListener('change', syncDistricts);
+    districtSelect.addEventListener('change', syncNeighborhoods);
+    syncDistricts();
 
     async function startCamera() {
         try {

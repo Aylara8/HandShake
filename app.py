@@ -1,6 +1,7 @@
 import os
 import base64
 import binascii
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -10,6 +11,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from io import BytesIO
 from flask_migrate import Migrate
+from sqlalchemy import inspect, or_, text
+from ai_logic import HandshakeLiveEngine
 
 app = Flask(__name__)
 app.secret_key = 'handshake_secret_key'
@@ -23,6 +26,78 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+expert_executor = ThreadPoolExecutor(max_workers=4)
+live_engine = HandshakeLiveEngine()
+
+# Seeded from current official administrative references for Turkmenistan,
+# with Ashgabat streets and avenues taken from official city transport notices.
+TURKMEN_LOCATION_DATA = [
+    {
+        "name": "Ashgabat",
+        "kind": "city",
+        "districts": [
+            {
+                "name": "Bagtyyarlyk",
+                "category": "city_district",
+                "neighborhoods": [
+                    "Teke Bazar",
+                    "A. Niyazov Avenue",
+                    "M. Kashgari Street",
+                    "D. Azady Street",
+                ],
+            },
+            {
+                "name": "Berkararlyk",
+                "category": "city_district",
+                "neighborhoods": [
+                    "Central Ashgabat",
+                    "Garashsyzlyk Avenue",
+                    "Turkmenbashy Avenue",
+                    "Ataturk Street",
+                ],
+            },
+            {
+                "name": "Kopetdag",
+                "category": "city_district",
+                "neighborhoods": [
+                    "Archabil Avenue",
+                    "Bitarap Turkmenistan Avenue",
+                    "Chandybil Avenue",
+                ],
+            },
+            {
+                "name": "Buzmeyin",
+                "category": "city_district",
+                "neighborhoods": [
+                    "Arzuv",
+                    "10 yyl Abadanchylyk Street",
+                    "B. Annanov Street",
+                    "H.A. Yasavi Street",
+                    "N. Andalib Street",
+                ],
+            },
+        ],
+    },
+    {
+        "name": "Ahal",
+        "kind": "velayat",
+        "districts": [
+            {"name": "Ak bugday", "category": "district", "neighborhoods": ["Anau"]},
+            {"name": "Altyn Asyr", "category": "district", "neighborhoods": ["Altyn Asyr"]},
+            {"name": "Babadayhan", "category": "district", "neighborhoods": ["Babadayhan"]},
+            {"name": "Baharly", "category": "district", "neighborhoods": ["Baharly"]},
+            {"name": "Gokdepe", "category": "district", "neighborhoods": ["Gokdepe"]},
+            {"name": "Kaka", "category": "district", "neighborhoods": ["Kaka"]},
+            {"name": "Sarahs", "category": "district", "neighborhoods": ["Sarahs"]},
+            {"name": "Tejen", "category": "district", "neighborhoods": ["Tejen"]},
+        ],
+    },
+    {"name": "Balkan", "kind": "velayat", "districts": []},
+    {"name": "Dashoguz", "kind": "velayat", "districts": []},
+    {"name": "Lebap", "kind": "velayat", "districts": []},
+    {"name": "Mary", "kind": "velayat", "districts": []},
+    {"name": "Arkadag", "kind": "city", "districts": []},
+]
 
 
 def save_data_url_image(data_url, destination_path):
@@ -104,6 +179,195 @@ def normalize_user_profile_pic(user):
     user.profile_pic = normalize_profile_pic_url(user.profile_pic)
 
 
+def get_location_tree():
+    velayats = Velayat.query.order_by(
+        db.case(
+            (Velayat.name == 'Ashgabat', 0),
+            (Velayat.name == 'Ahal', 1),
+            else_=2
+        ),
+        Velayat.name.asc()
+    ).all()
+    tree = []
+    for velayat in velayats:
+        districts = []
+        for district in sorted(velayat.districts, key=lambda item: item.name):
+            neighborhoods = [
+                {"id": neighborhood.id, "name": neighborhood.name}
+                for neighborhood in sorted(district.neighborhoods, key=lambda item: item.name)
+            ]
+            districts.append(
+                {
+                    "id": district.id,
+                    "name": district.name,
+                    "category": district.category,
+                    "neighborhoods": neighborhoods,
+                }
+            )
+        tree.append(
+            {
+                "id": velayat.id,
+                "name": velayat.name,
+                "kind": velayat.kind,
+                "districts": districts,
+            }
+        )
+    return tree
+
+
+def find_seeded_neighborhood(velayat_name, district_name, neighborhood_name):
+    return Neighborhood.query.join(District).join(Velayat).filter(
+        Velayat.name == velayat_name,
+        District.name == district_name,
+        Neighborhood.name == neighborhood_name
+    ).first()
+
+
+def resolve_legacy_location(legacy_loc):
+    normalized = (legacy_loc or '').strip().lower()
+    if not normalized:
+        return find_seeded_neighborhood('Ashgabat', 'Berkararlyk', 'Central Ashgabat')
+
+    mapping = [
+        ('ashgabat', ('Ashgabat', 'Berkararlyk', 'Central Ashgabat')),
+        ('anau', ('Ahal', 'Ak bugday', 'Anau')),
+        ('ak bugday', ('Ahal', 'Ak bugday', 'Anau')),
+        ('altyn asyr', ('Ahal', 'Altyn Asyr', 'Altyn Asyr')),
+        ('babadayhan', ('Ahal', 'Babadayhan', 'Babadayhan')),
+        ('baharly', ('Ahal', 'Baharly', 'Baharly')),
+        ('gokdepe', ('Ahal', 'Gokdepe', 'Gokdepe')),
+        ('kaka', ('Ahal', 'Kaka', 'Kaka')),
+        ('sarahs', ('Ahal', 'Sarahs', 'Sarahs')),
+        ('tejen', ('Ahal', 'Tejen', 'Tejen')),
+    ]
+    for token, target in mapping:
+        if token in normalized:
+            return find_seeded_neighborhood(*target)
+    return find_seeded_neighborhood('Ashgabat', 'Berkararlyk', 'Central Ashgabat')
+
+
+def ensure_location_schema():
+    Velayat.__table__.create(bind=db.engine, checkfirst=True)
+    District.__table__.create(bind=db.engine, checkfirst=True)
+    Neighborhood.__table__.create(bind=db.engine, checkfirst=True)
+
+    inspector = inspect(db.engine)
+    item_columns = {column['name'] for column in inspector.get_columns('item')}
+    if 'neighborhood_id' not in item_columns:
+        db.session.execute(text('ALTER TABLE item ADD COLUMN neighborhood_id INTEGER'))
+        db.session.commit()
+
+
+def seed_location_data():
+    for velayat_data in TURKMEN_LOCATION_DATA:
+        velayat = Velayat.query.filter_by(name=velayat_data['name']).first()
+        if not velayat:
+            velayat = Velayat(name=velayat_data['name'], kind=velayat_data['kind'])
+            db.session.add(velayat)
+            db.session.flush()
+        else:
+            velayat.kind = velayat_data['kind']
+
+        for district_data in velayat_data['districts']:
+            district = District.query.filter_by(
+                velayat_id=velayat.id,
+                name=district_data['name']
+            ).first()
+            if not district:
+                district = District(
+                    name=district_data['name'],
+                    category=district_data['category'],
+                    velayat_id=velayat.id
+                )
+                db.session.add(district)
+                db.session.flush()
+            else:
+                district.category = district_data['category']
+
+            for neighborhood_name in district_data['neighborhoods']:
+                neighborhood = Neighborhood.query.filter_by(
+                    district_id=district.id,
+                    name=neighborhood_name
+                ).first()
+                if not neighborhood:
+                    db.session.add(Neighborhood(name=neighborhood_name, district_id=district.id))
+
+    db.session.commit()
+
+
+def backfill_item_locations():
+    inspector = inspect(db.engine)
+    item_columns = {column['name'] for column in inspector.get_columns('item')}
+    has_legacy_loc = 'loc' in item_columns
+    if has_legacy_loc:
+        rows = db.session.execute(text('SELECT id, loc, neighborhood_id FROM item')).mappings().all()
+        for row in rows:
+            if row['neighborhood_id']:
+                continue
+            neighborhood = resolve_legacy_location(row['loc'])
+            if neighborhood:
+                db.session.execute(
+                    text('UPDATE item SET neighborhood_id = :neighborhood_id WHERE id = :item_id'),
+                    {"neighborhood_id": neighborhood.id, "item_id": row['id']}
+                )
+        db.session.commit()
+        return
+
+    items = Item.query.filter(Item.neighborhood_id.is_(None)).all()
+    for item in items:
+        neighborhood = resolve_legacy_location(None)
+        if neighborhood:
+            item.neighborhood_id = neighborhood.id
+    db.session.commit()
+
+
+def rebuild_item_table_without_legacy_loc():
+    inspector = inspect(db.engine)
+    item_columns = {column['name'] for column in inspector.get_columns('item')}
+    if 'loc' not in item_columns:
+        return
+
+    db.session.execute(text('PRAGMA foreign_keys=OFF'))
+    db.session.execute(text('DROP TABLE IF EXISTS item_new'))
+    db.session.execute(text("""
+        CREATE TABLE item_new (
+            id INTEGER NOT NULL PRIMARY KEY,
+            title VARCHAR(200) NOT NULL,
+            price VARCHAR(50) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            description TEXT,
+            image_url VARCHAR(500),
+            category VARCHAR(100) NOT NULL,
+            rating FLOAT,
+            num_ratings INTEGER,
+            user_id INTEGER,
+            neighborhood_id INTEGER
+        )
+    """))
+    db.session.execute(text("""
+        INSERT INTO item_new (
+            id, title, price, type, description, image_url,
+            category, rating, num_ratings, user_id, neighborhood_id
+        )
+        SELECT
+            id, title, price, type, description, image_url,
+            category, rating, num_ratings, user_id, neighborhood_id
+        FROM item
+    """))
+    db.session.execute(text('DROP TABLE item'))
+    db.session.execute(text('ALTER TABLE item_new RENAME TO item'))
+    db.session.execute(text('PRAGMA foreign_keys=ON'))
+    db.session.commit()
+
+
+def apply_database_updates():
+    db.create_all()
+    ensure_location_schema()
+    seed_location_data()
+    backfill_item_locations()
+    rebuild_item_table_without_legacy_loc()
+
+
 @app.errorhandler(RequestEntityTooLarge)
 def handle_request_too_large(_error):
     flash('The uploaded image is too large. Please use a smaller or compressed image.')
@@ -119,6 +383,44 @@ def handle_request_too_large(_error):
     return redirect(url_for('index'))
 
 # Models
+class Velayat(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    kind = db.Column(db.String(20), nullable=False, default='velayat')
+    districts = db.relationship('District', backref='velayat', lazy=True, cascade='all, delete-orphan')
+
+
+class District(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(20), nullable=False, default='district')
+    velayat_id = db.Column(db.Integer, db.ForeignKey('velayat.id'), nullable=False)
+    neighborhoods = db.relationship('Neighborhood', backref='district', lazy=True, cascade='all, delete-orphan')
+
+    __table_args__ = (
+        db.UniqueConstraint('velayat_id', 'name', name='uq_district_velayat_name'),
+    )
+
+
+class Neighborhood(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    district_id = db.Column(db.Integer, db.ForeignKey('district.id'), nullable=False)
+    items = db.relationship('Item', backref='neighborhood', lazy=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('district_id', 'name', name='uq_neighborhood_district_name'),
+    )
+
+    @property
+    def display_name(self):
+        return f"{self.name}, {self.district.name}"
+
+    @property
+    def full_path(self):
+        return f"{self.name}, {self.district.name}, {self.district.velayat.name}"
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), nullable=True)
@@ -141,13 +443,19 @@ class Item(db.Model):
     title = db.Column(db.String(200), nullable=False)
     price = db.Column(db.String(50), nullable=False)
     type = db.Column(db.String(50), nullable=False)
-    loc = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     image_url = db.Column(db.String(500), nullable=True)
     category = db.Column(db.String(100), nullable=False)
     rating = db.Column(db.Float, default=5.0)
     num_ratings = db.Column(db.Integer, default=1)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    neighborhood_id = db.Column(db.Integer, db.ForeignKey('neighborhood.id'), nullable=True)
+
+    @property
+    def location_label(self):
+        if self.neighborhood:
+            return self.neighborhood.full_path
+        return "Ashgabat"
 
 class Review(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -187,9 +495,20 @@ def load_user(user_id):
     normalize_user_profile_pic(user)
     return user
 
+
+@app.context_processor
+def inject_chat_request_count():
+    pending_chat_request_count = 0
+    if current_user.is_authenticated:
+        pending_chat_request_count = ChatRequest.query.filter_by(
+            recipient_id=current_user.id,
+            status='pending'
+        ).count()
+    return {'pending_chat_request_count': pending_chat_request_count}
+
 # Initialize Database with dummy data
 with app.app_context():
-    db.create_all()
+    apply_database_updates()
     
     if not User.query.filter_by(email="nepes@handshake.com").first():
         # Create Dummy Users
@@ -233,7 +552,8 @@ with app.app_context():
         for item in items_data:
             new_item = Item(
                 title=item['title'], price=item['price'], type=item['type'],
-                loc="Ashgabat", description=item['desc'], category=item['cat'],
+                neighborhood_id=find_seeded_neighborhood('Ashgabat', 'Berkararlyk', 'Central Ashgabat').id,
+                description=item['desc'], category=item['cat'],
                 user_id=db_users[item['user_idx']].id,
                 image_url=item['img']
             )
@@ -263,24 +583,71 @@ def dashboard():
     all_items = Item.query.order_by(Item.id.desc()).all()
     return render_template('dashboard.html', items=all_items)
 
+
+def render_marketplace():
+    query = (request.args.get('q') or "").strip()
+    raw_velayat_id = request.args.get('velayat_id') or ''
+    raw_district_id = request.args.get('district_id') or ''
+    raw_neighborhood_id = request.args.get('neighborhood_id') or ''
+
+    try:
+        velayat_id = int(raw_velayat_id) if raw_velayat_id else None
+    except ValueError:
+        velayat_id = None
+
+    try:
+        district_id = int(raw_district_id) if raw_district_id else None
+    except ValueError:
+        district_id = None
+
+    try:
+        neighborhood_id = int(raw_neighborhood_id) if raw_neighborhood_id else None
+    except ValueError:
+        neighborhood_id = None
+
+    items_query = Item.query.outerjoin(Neighborhood).outerjoin(District)
+
+    if query:
+        like_query = f"%{query}%"
+        items_query = items_query.filter(
+            or_(
+                Item.title.ilike(like_query),
+                Item.description.ilike(like_query),
+                Item.category.ilike(like_query),
+            )
+        )
+
+    if velayat_id:
+        items_query = items_query.filter(District.velayat_id == velayat_id)
+    if district_id:
+        items_query = items_query.filter(Neighborhood.district_id == district_id)
+    if neighborhood_id:
+        items_query = items_query.filter(Item.neighborhood_id == neighborhood_id)
+
+    items = items_query.order_by(Item.id.desc()).all()
+    location_tree = get_location_tree()
+    selected_location = {
+        "velayat_id": velayat_id,
+        "district_id": district_id,
+        "neighborhood_id": neighborhood_id,
+    }
+    return render_template(
+        'index.html',
+        items=items,
+        search_query=query,
+        location_tree=location_tree,
+        selected_location=selected_location,
+        expert_query=query if query else ''
+    )
+
+
 @app.route('/market')
 def index():
-    all_items = Item.query.order_by(Item.id.desc()).all()
-    return render_template('index.html', items=all_items)
+    return render_marketplace()
 
 @app.route('/search')
 def search():
-    query = (request.args.get('q') or "").strip()
-    if query:
-        like_query = f"%{query}%"
-        items = Item.query.filter(
-            Item.title.ilike(like_query)
-            | Item.description.ilike(like_query)
-            | Item.category.ilike(like_query)
-        ).all()
-    else:
-        items = Item.query.all()
-    return render_template('index.html', items=items)
+    return render_marketplace()
 
 @app.route('/process-passport', methods=['POST'])
 def process_passport():
@@ -289,6 +656,36 @@ def process_passport():
     if not image_data:
         return jsonify({'error': 'No image data provided'}), 400
     return jsonify({'full_name': "NEPES TAYYAROW", 'age': 25})
+
+
+@app.route('/api/expert', methods=['POST'])
+def expert_api():
+    payload = request.get_json(silent=True) or {}
+    item_query = (payload.get('item_query') or '').strip()
+    user_request = (payload.get('question') or '').strip()
+    if not item_query:
+        return jsonify({'error': 'item_query is required'}), 400
+
+    future = expert_executor.submit(live_engine.generate_live_expert_result, item_query, user_request)
+    try:
+        result = future.result(timeout=30)
+    except FuturesTimeoutError:
+        future.cancel()
+        fallback = live_engine.generate_live_expert_result(item_query, user_request)
+        response = jsonify(fallback['payload'])
+        response.headers['X-Expert-Source'] = fallback.get('source', 'fallback')
+        response.headers['X-Live-Provider-Available'] = 'true' if fallback.get('live_provider_available') else 'false'
+        return response
+    except Exception:
+        return jsonify({'error': 'Expert engine failed'}), 502
+
+    if not result or not result.get('payload'):
+        return jsonify({'error': 'No expert data available'}), 503
+
+    response = jsonify(result['payload'])
+    response.headers['X-Expert-Source'] = result.get('source', 'unknown')
+    response.headers['X-Live-Provider-Available'] = 'true' if result.get('live_provider_available') else 'false'
+    return response
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -401,6 +798,17 @@ def register():
 @login_required
 def upload():
     if request.method == 'POST':
+        neighborhood_id = request.form.get('neighborhood_id')
+        neighborhood = None
+        try:
+            neighborhood = Neighborhood.query.get(int(neighborhood_id))
+        except (TypeError, ValueError):
+            neighborhood = None
+
+        if not neighborhood:
+            flash('Please select a valid neighborhood or street.')
+            return redirect(url_for('upload'))
+
         file = request.files.get('item_image')
         camera_image = request.form.get('camera_image')
         image_url = "https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?w=800"
@@ -421,14 +829,14 @@ def upload():
             
         new_item = Item(
             title=request.form.get('title'), price=request.form.get('price'),
-            type=request.form.get('type'), loc=request.form.get('loc'),
+            type=request.form.get('type'), neighborhood_id=neighborhood.id,
             description=request.form.get('description'), image_url=image_url,
             category=request.form.get('category'), user_id=current_user.id
         )
         db.session.add(new_item)
         db.session.commit()
         return redirect(url_for('index'))
-    return render_template('upload.html')
+    return render_template('upload.html', location_tree=get_location_tree())
 
 @app.route('/profile/<int:user_id>')
 def profile(user_id):
@@ -623,6 +1031,8 @@ def chat(recipient_id=None):
     initial_tab = request.args.get('tab', 'chats')
     if initial_tab not in ('chats', 'requests'):
         initial_tab = 'chats'
+    if 'tab' not in request.args and pending_requests:
+        initial_tab = 'requests'
 
     if recipient_id:
         state, _ = get_chat_connection_state(current_user.id, recipient_id)
@@ -692,7 +1102,11 @@ def send_message():
 def item_detail(item_id):
     item = Item.query.get_or_404(item_id)
     reviews = Review.query.filter_by(item_id=item_id).all()
-    return render_template('item_detail.html', item=item, reviews=reviews)
+    chat_request = None
+    chat_state = 'none'
+    if current_user.is_authenticated and item.owner and current_user.id != item.owner.id:
+        chat_state, chat_request = get_chat_connection_state(current_user.id, item.owner.id)
+    return render_template('item_detail.html', item=item, reviews=reviews, chat_request=chat_request, chat_state=chat_state)
 
 @app.route('/rate_item/<int:item_id>', methods=['POST'])
 @login_required

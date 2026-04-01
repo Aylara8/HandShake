@@ -26,14 +26,19 @@
             
             <div class="search-bar-container">
                 <form action="/search" method="GET" class="search-bar">
-                    <input type="text" name="q" class="search-input-minimal" placeholder="Search for anything...">
+                    <input type="text" name="q" class="search-input-minimal" placeholder="Search for anything..." value="{{ request.args.get('q', '') }}">
                     <button type="submit" class="search-icon-btn"><i class="fas fa-search"></i></button>
                 </form>
             </div>
 
             <div class="nav-actions">
                 <a href="/market" class="post-link">Marketplace</a>
-                <a href="/chat" class="icon-btn" title="Messages"><i class="fas fa-comments"></i></a>
+                <a href="{% if pending_chat_request_count %}{{ url_for('chat', tab='requests') }}{% else %}/chat{% endif %}" class="icon-btn nav-chat-link" title="Messages">
+                    <i class="fas fa-comments"></i>
+                    {% if pending_chat_request_count %}
+                    <span class="nav-request-badge">{{ pending_chat_request_count }}</span>
+                    {% endif %}
+                </a>
                 <a href="/upload" class="post-link">Post Item</a>
                 <button id="theme-toggle" class="icon-btn"><i class="fas fa-moon"></i></button>
                 <div class="user-menu">
@@ -49,6 +54,7 @@
                         {% if current_user.is_authenticated %}
                             <a href="{{ url_for('profile', user_id=current_user.id) }}" class="dropdown-item"><b>{{ current_user.full_name or current_user.username }}</b></a>
                             <a href="{{ url_for('profile', user_id=current_user.id) }}" class="dropdown-item">My Listings</a>
+                            <a href="{% if pending_chat_request_count %}{{ url_for('chat', tab='requests') }}{% else %}{{ url_for('chat') }}{% endif %}" class="dropdown-item">Messages{% if pending_chat_request_count %} ({{ pending_chat_request_count }}){% endif %}</a>
                             <a href="{{ url_for('edit_profile') }}" class="dropdown-item">Edit Profile</a>
                             <div class="dropdown-divider"></div>
                             <a href="/logout" class="dropdown-item">Log out</a>

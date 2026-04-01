@@ -3,6 +3,54 @@
 {% block title %}HandShake | Home{% endblock %}
 
 {% block content %}
+<div
+    id="ai-expert-sidebar"
+    class="ai-expert-sidebar"
+    {% if expert_query %}data-expert-query="{{ expert_query }}"{% endif %}
+>
+    <div class="ai-expert-header">
+        <span class="ai-expert-eyebrow">Live Expert</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+            <h3>Ask AI about this search</h3>
+            <button type="button" id="ai-expert-close" class="ai-expert-close" aria-label="Close AI chat">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="ai-expert-status">Nothing runs until you ask.</div>
+    <div class="ai-expert-actions">
+        <button type="button" class="ai-quick-action" data-expert-question="Teach me what to check for in these results.">Learn these results</button>
+        <button type="button" class="ai-quick-action" data-expert-question="How should I set up or inspect an item like this?">Setup help</button>
+    </div>
+    <div class="ai-chat-thread" id="ai-chat-thread"></div>
+    <form id="ai-expert-form" class="ai-expert-form">
+        <input id="ai-expert-input" type="text" placeholder="Ask about setup, inspection, or usage" {% if not expert_query %}disabled{% endif %}>
+        <button type="submit" class="auth-btn" {% if not expert_query %}disabled{% endif %}>Ask AI</button>
+    </form>
+</div>
+
+{% if expert_query %}
+<button type="button" id="ai-expert-launcher" class="ai-expert-launcher">AI chat</button>
+{% endif %}
+
+<div id="cyber-grid-overlay" class="cyber-grid-overlay"></div>
+<div id="magic-notes-layer" class="magic-notes-layer"></div>
+<div id="spark-burst-layer" class="spark-burst-layer"></div>
+
+<style>
+@media (max-width: 960px) {
+    #location-filter-form {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    #location-filter-form {
+        grid-template-columns: 1fr;
+        padding: 16px;
+    }
+}
+</style>
 <div class="categories-container">
     <div class="categories-scroll">
         <div class="category-item active" data-category="all">
@@ -36,6 +84,37 @@
     </div>
 </div>
 
+<div style="max-width: 1280px; margin: 0 auto 28px; padding: 0 40px;">
+    <form action="{{ url_for('search') }}" method="GET" id="location-filter-form" style="display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--card-bg); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);">
+        <input
+            type="text"
+            name="q"
+            value="{{ search_query or '' }}"
+            placeholder="Search title, description, or category"
+            style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);"
+        >
+        <select id="velayat-filter" name="velayat_id" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);">
+            <option value="">All velayats</option>
+            {% for velayat in location_tree %}
+            <option value="{{ velayat.id }}" {% if selected_location.velayat_id == velayat.id %}selected{% endif %}>{{ velayat.name }}</option>
+            {% endfor %}
+        </select>
+        <select id="district-filter" name="district_id" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);">
+            <option value="">All districts</option>
+        </select>
+        <select id="neighborhood-filter" name="neighborhood_id" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);">
+            <option value="">All neighborhoods / streets</option>
+        </select>
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" class="auth-btn" style="padding: 0 18px; min-height: 52px;">Filter</button>
+            <a href="{{ url_for('index') }}" class="auth-btn" style="padding: 15px 18px; min-height: 52px; background: #f3f4f6; color: black; text-decoration: none;">Reset</a>
+        </div>
+    </form>
+    <p style="margin: 12px 2px 0; color: var(--text-secondary); font-size: 0.9rem;">
+        Use `Ahal` to narrow by official etraps, or `Ashgabat` to pick specific streets and avenues.
+    </p>
+</div>
+
 <div class="product-grid">
     {% for item in items %}
     <a href="{{ url_for('item_detail', item_id=item.id) }}" class="hs-card" data-category="{{ item.category }}" style="text-decoration: none; color: inherit;">
@@ -45,13 +124,74 @@
         </div>
         <div class="card-content">
             <h3>{{ item.title }}</h3>
-            <p class="location">{{ item.loc or 'Ashgabat' }}</p>
+            <p class="location">{{ item.location_label }}</p>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
                 <p class="price">{{ item.price }} TMT {% if item.type == 'rent' %}<span>/ day</span>{% endif %}</p>
                 <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-star" style="color: #f59e0b;"></i> {{ "%.1f"|format(item.rating) }}</span>
             </div>
         </div>
     </a>
+    {% else %}
+    <div style="grid-column: 1 / -1; padding: 48px 24px; text-align: center; border: 1px dashed var(--border); border-radius: 20px; background: var(--card-bg); color: var(--text-secondary);">
+        No listings matched the current filters.
+    </div>
     {% endfor %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const locationTree = {{ location_tree|tojson }};
+    const selectedLocation = {{ selected_location|tojson }};
+    const velayatSelect = document.getElementById('velayat-filter');
+    const districtSelect = document.getElementById('district-filter');
+    const neighborhoodSelect = document.getElementById('neighborhood-filter');
+
+    function populateSelect(select, options, placeholder, selectedValue) {
+        select.innerHTML = '';
+        const placeholderOption = document.createElement('option');
+        placeholderOption.value = '';
+        placeholderOption.textContent = placeholder;
+        select.appendChild(placeholderOption);
+
+        options.forEach((option) => {
+            const element = document.createElement('option');
+            element.value = option.id;
+            element.textContent = option.name;
+            if (String(selectedValue || '') === String(option.id)) {
+                element.selected = true;
+            }
+            select.appendChild(element);
+        });
+    }
+
+    function syncDistricts(selectedDistrictId, selectedNeighborhoodId) {
+        const velayat = locationTree.find((entry) => String(entry.id) === velayatSelect.value);
+        const districts = velayat ? velayat.districts : [];
+        populateSelect(districtSelect, districts, 'All districts', selectedDistrictId);
+        syncNeighborhoods(selectedNeighborhoodId);
+    }
+
+    function syncNeighborhoods(selectedNeighborhoodId) {
+        const velayat = locationTree.find((entry) => String(entry.id) === velayatSelect.value);
+        const district = velayat && districtSelect.value
+            ? velayat.districts.find((entry) => String(entry.id) === districtSelect.value)
+            : null;
+        const neighborhoods = district ? district.neighborhoods : [];
+        const label = velayat && velayat.name === 'Ashgabat'
+            ? 'All streets / avenues'
+            : 'All neighborhoods / streets';
+        populateSelect(neighborhoodSelect, neighborhoods, label, selectedNeighborhoodId);
+    }
+
+    velayatSelect.addEventListener('change', () => {
+        syncDistricts('', '');
+    });
+
+    districtSelect.addEventListener('change', () => {
+        syncNeighborhoods('');
+    });
+
+    syncDistricts(selectedLocation.district_id, selectedLocation.neighborhood_id);
+});
+</script>
 {% endblock %}
