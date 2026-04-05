@@ -37,20 +37,6 @@
 <div id="magic-notes-layer" class="magic-notes-layer"></div>
 <div id="spark-burst-layer" class="spark-burst-layer"></div>
 
-<style>
-@media (max-width: 960px) {
-    #location-filter-form {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
-@media (max-width: 640px) {
-    #location-filter-form {
-        grid-template-columns: 1fr;
-        padding: 16px;
-    }
-}
-</style>
 <div class="categories-container">
     <div class="categories-scroll">
         <div class="category-item active" data-category="all">
@@ -84,36 +70,56 @@
     </div>
 </div>
 
-<div style="max-width: 1280px; margin: 0 auto 28px; padding: 0 40px;">
-    <form action="{{ url_for('search') }}" method="GET" id="location-filter-form" style="display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--card-bg); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);">
-        <input
-            type="text"
-            name="q"
-            value="{{ search_query or '' }}"
-            placeholder="Search title, description, or category"
-            style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);"
-        >
-        <select id="velayat-filter" name="velayat_id" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);">
-            <option value="">All velayats</option>
-            {% for velayat in location_tree %}
-            <option value="{{ velayat.id }}" {% if selected_location.velayat_id == velayat.id %}selected{% endif %}>{{ velayat.name }}</option>
-            {% endfor %}
-        </select>
-        <select id="district-filter" name="district_id" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);">
-            <option value="">All districts</option>
-        </select>
-        <select id="neighborhood-filter" name="neighborhood_id" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary);">
-            <option value="">All neighborhoods / streets</option>
-        </select>
-        <div style="display: flex; gap: 10px;">
-            <button type="submit" class="auth-btn" style="padding: 0 18px; min-height: 52px;">Filter</button>
-            <a href="{{ url_for('index') }}" class="auth-btn" style="padding: 15px 18px; min-height: 52px; background: #f3f4f6; color: black; text-decoration: none;">Reset</a>
+<section id="market-search-panel" class="market-search-panel-wrap">
+    <div class="market-search-panel">
+        <div class="market-search-panel-head">
+            <h2>{{ t('market.title') }}</h2>
+            <p>{{ t('market.subtitle') }}</p>
         </div>
-    </form>
-    <p style="margin: 12px 2px 0; color: var(--text-secondary); font-size: 0.9rem;">
-        Use `Ahal` to narrow by official etraps, or `Ashgabat` to pick specific streets and avenues.
-    </p>
-</div>
+        <form action="{{ url_for('search') }}" method="GET" class="market-filter-form">
+            <div class="market-field market-field-query">
+                <label for="market-q">{{ t('market.keyword') }}</label>
+                <input id="market-q" type="text" name="q" value="{{ search_query or '' }}" placeholder="{{ t('market.keyword_placeholder') }}">
+            </div>
+            <div class="market-field">
+                <label for="velayat-filter-main">{{ t('market.velayat') }}</label>
+                <select id="velayat-filter-main" name="velayat_id">
+                    <option value="">{{ t('market.all_velayats') }}</option>
+                    {% for velayat in location_tree %}
+                    <option value="{{ velayat.id }}" {% if selected_location.velayat_id == velayat.id %}selected{% endif %}>{{ velayat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="market-field">
+                <label for="district-filter-main">{{ t('market.district') }}</label>
+                <select id="district-filter-main" name="district_id">
+                    <option value="">{{ t('market.all_districts') }}</option>
+                </select>
+            </div>
+            <div class="market-field">
+                <label for="neighborhood-filter-main">{{ t('market.neighborhood') }}</label>
+                <select id="neighborhood-filter-main" name="neighborhood_id">
+                    <option value="">{{ t('market.all_neighborhoods') }}</option>
+                </select>
+            </div>
+            <div class="market-filter-actions">
+                <button type="submit" class="auth-btn market-search-submit">{{ t('market.search') }}</button>
+                <a href="{{ url_for('index') }}" class="market-search-clear">{{ t('market.clear') }}</a>
+            </div>
+        </form>
+        <div class="market-search-result-meta">
+            {% set listing_suffix = '' %}
+            {% if current_locale == 'en' and items|length != 1 %}
+                {% set listing_suffix = 's' %}
+            {% endif %}
+            {% set query_suffix = '' %}
+            {% if search_query %}
+                {% set query_suffix = ' "' ~ search_query ~ '"' %}
+            {% endif %}
+            {{ t('market.showing', count=items|length, suffix=listing_suffix, query_suffix=query_suffix) }}
+        </div>
+    </div>
+</section>
 
 <div class="product-grid">
     {% for item in items %}
@@ -133,7 +139,7 @@
     </a>
     {% else %}
     <div style="grid-column: 1 / -1; padding: 48px 24px; text-align: center; border: 1px dashed var(--border); border-radius: 20px; background: var(--card-bg); color: var(--text-secondary);">
-        No listings matched the current filters.
+        {{ t('market.no_results') }}
     </div>
     {% endfor %}
 </div>
@@ -142,9 +148,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     const locationTree = {{ location_tree|tojson }};
     const selectedLocation = {{ selected_location|tojson }};
-    const velayatSelect = document.getElementById('velayat-filter');
-    const districtSelect = document.getElementById('district-filter');
-    const neighborhoodSelect = document.getElementById('neighborhood-filter');
+    const velayatSelect = document.getElementById('velayat-filter-main');
+    const districtSelect = document.getElementById('district-filter-main');
+    const neighborhoodSelect = document.getElementById('neighborhood-filter-main');
+    if (!velayatSelect || !districtSelect || !neighborhoodSelect) {
+        return;
+    }
 
     function populateSelect(select, options, placeholder, selectedValue) {
         select.innerHTML = '';
@@ -167,7 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function syncDistricts(selectedDistrictId, selectedNeighborhoodId) {
         const velayat = locationTree.find((entry) => String(entry.id) === velayatSelect.value);
         const districts = velayat ? velayat.districts : [];
-        populateSelect(districtSelect, districts, 'All districts', selectedDistrictId);
+        populateSelect(districtSelect, districts, '{{ t("market.all_districts") }}', selectedDistrictId);
+        districtSelect.disabled = districts.length === 0;
         syncNeighborhoods(selectedNeighborhoodId);
     }
 
@@ -178,9 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
             : null;
         const neighborhoods = district ? district.neighborhoods : [];
         const label = velayat && velayat.name === 'Ashgabat'
-            ? 'All streets / avenues'
-            : 'All neighborhoods / streets';
+            ? '{{ t("market.all_streets") }}'
+            : '{{ t("market.all_neighborhoods") }}';
         populateSelect(neighborhoodSelect, neighborhoods, label, selectedNeighborhoodId);
+        neighborhoodSelect.disabled = neighborhoods.length === 0;
     }
 
     velayatSelect.addEventListener('change', () => {

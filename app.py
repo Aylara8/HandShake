@@ -1,18 +1,30 @@
 import os
 import base64
 import binascii
+import hashlib
+import secrets
+import smtplib
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from email.message import EmailMessage
 from io import BytesIO
 from flask_migrate import Migrate
 from sqlalchemy import inspect, or_, text
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv(*_args, **_kwargs):
+        return False
 from ai_logic import HandshakeLiveEngine
+
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'handshake_secret_key'
@@ -28,6 +40,208 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 expert_executor = ThreadPoolExecutor(max_workers=4)
 live_engine = HandshakeLiveEngine()
+PASSWORD_RESET_TOKEN_TTL_MINUTES = 20
+ADMIN_EMAIL = (os.getenv('ADMIN_EMAIL') or '').strip().lower()
+ALLOW_LOCAL_RESET_LINK = os.getenv('ALLOW_LOCAL_RESET_LINK', 'true').lower() == 'true'
+SUPPORTED_LANGUAGES = {
+    'en': 'English',
+    'tm': 'Turkmen',
+    'ru': 'Russian',
+}
+TRANSLATIONS = {
+    'en': {
+        'nav.search_placeholder': 'Search for anything...',
+        'nav.marketplace': 'Marketplace',
+        'nav.messages': 'Messages',
+        'nav.post_item': 'Post Item',
+        'nav.edit_profile': 'Edit Profile',
+        'nav.my_listings': 'My Listings',
+        'nav.logout': 'Log out',
+        'nav.login': 'Log in',
+        'nav.signup': 'Sign up',
+        'lang.label': 'Language',
+        'market.title': 'Find What You Need',
+        'market.subtitle': 'Use keywords and location filters to narrow listings fast.',
+        'market.keyword': 'Keyword',
+        'market.keyword_placeholder': 'Camera, toolkit, car, apartment...',
+        'market.velayat': 'Velayat',
+        'market.district': 'District',
+        'market.neighborhood': 'Neighborhood',
+        'market.all_velayats': 'All velayats',
+        'market.all_districts': 'All districts',
+        'market.all_neighborhoods': 'All neighborhoods / streets',
+        'market.all_streets': 'All streets / avenues',
+        'market.search': 'Search',
+        'market.clear': 'Clear',
+        'market.showing': 'Showing {count} listing{suffix}{query_suffix}.',
+        'market.no_results': 'No listings matched the current filters.',
+        'auth.login_title': 'Secure Sign In',
+        'auth.login_subtitle': 'Enter your credentials to access your HandShake account.',
+        'auth.email_address': 'Email Address',
+        'auth.password': 'Password',
+        'auth.remember_me': 'Remember me',
+        'auth.forgot_password': 'Forgot password?',
+        'auth.secure_login': 'Secure Login',
+        'auth.no_account': "Don't have an account?",
+        'auth.start_kyc': 'Start KYC Verification',
+        'auth.recovery_title': 'Secure Password Recovery',
+        'auth.recovery_subtitle': 'This flow requires a one-time reset token. Tokens expire after 20 minutes and can be used once.',
+        'auth.step1': '1. Request reset token',
+        'auth.step2': '2. Reset password with token',
+        'auth.email_placeholder': 'Your account email',
+        'auth.generate_token': 'Generate Token',
+        'auth.token_placeholder': 'One-time reset token',
+        'auth.new_password': 'New password',
+        'auth.confirm_new_password': 'Confirm new password',
+        'auth.reset_password': 'Reset Password',
+        'auth.no_email_notice': 'No email sender is configured in this app, so token delivery is handled by admin/server logs.',
+        'auth.back_to_login': 'Back to',
+        'auth.reset_intro': 'Enter your email and new password. If you do not have a token yet, submit once to generate one.',
+        'auth.reset_token': 'Reset token',
+        'auth.generate_or_reset': 'Generate Token / Reset',
+        'auth.forgot_intro': 'Enter your Gmail/email and we will send a verification link.',
+        'auth.send_verification': 'Send verification email',
+        'auth.check_email_msg': 'If the account exists, a verification email has been sent.',
+        'auth.email_service_off': 'Email service is not configured on server. Contact admin.',
+        'auth.reset_from_email': 'Create new password',
+        'flash.invalid_login': 'Invalid email/username or password.',
+        'flash.email_required': 'Email is required.',
+        'flash.new_password_len': 'New password must be at least 6 characters.',
+        'flash.passwords_mismatch': 'Passwords do not match.',
+        'flash.no_account_email': 'No account found with that email.',
+        'flash.token_generated': 'Reset token generated: {token}. Use it within {minutes} minutes.',
+        'flash.invalid_token': 'Invalid or expired reset token.',
+        'flash.reset_success': 'Password reset successful. Please sign in with your new password.',
+    },
+    'tm': {
+        'nav.search_placeholder': 'Islendik zady gozle...',
+        'nav.marketplace': 'Bazar',
+        'nav.messages': 'Habarlar',
+        'nav.post_item': 'Haryt Gos',
+        'nav.edit_profile': 'Profili Uytget',
+        'nav.my_listings': 'Bildirislerim',
+        'nav.logout': 'Cyk',
+        'nav.login': 'Gir',
+        'nav.signup': 'Hasap Ac',
+        'lang.label': 'Dil',
+        'market.title': 'Gerek Zadyny Tap',
+        'market.subtitle': 'Netijeleri calt daraltmak ucin acar soz we yerlesis suzguclerini ulanyn.',
+        'market.keyword': 'Acar soz',
+        'market.keyword_placeholder': 'Kamera, gurallar, ulag, oy...',
+        'market.velayat': 'Welayat',
+        'market.district': 'Etrap',
+        'market.neighborhood': 'Yer / koce',
+        'market.all_velayats': 'Ahli welayatlar',
+        'market.all_districts': 'Ahli etraplar',
+        'market.all_neighborhoods': 'Ahli yerler / koceler',
+        'market.all_streets': 'Ahli koceler / sayollar',
+        'market.search': 'Gozle',
+        'market.clear': 'Arassala',
+        'market.showing': '{count} bildiris gorkezilyar{query_suffix}.',
+        'market.no_results': 'Su suzguclere layyk bildiris tapylmady.',
+        'auth.login_title': 'Howpsuz Giris',
+        'auth.login_subtitle': 'HandShake hasabynyza girmek ucin maglumatlarynyzy girizin.',
+        'auth.email_address': 'Email salgy',
+        'auth.password': 'Parol',
+        'auth.remember_me': 'Yatda sakla',
+        'auth.forgot_password': 'Acar sozunizi unutdynyzmy?',
+        'auth.secure_login': 'Howpsuz Giris',
+        'auth.no_account': 'Hasabynyz yokmy?',
+        'auth.start_kyc': 'KYC barlagyny basla',
+        'auth.recovery_title': 'Howpsuz Parol Dikeldis',
+        'auth.recovery_subtitle': 'Bu akym bir gezeklik token talap edýär. Token 20 minutda mohleti gecyar we dine bir gezek ulanylyar.',
+        'auth.step1': '1. Dikeldis tokenini sora',
+        'auth.step2': '2. Token bilen paroly tazele',
+        'auth.email_placeholder': 'Hasabynyzyn emaili',
+        'auth.generate_token': 'Token Doret',
+        'auth.token_placeholder': 'Bir gezeklik dikeldis tokeni',
+        'auth.new_password': 'Taze parol',
+        'auth.confirm_new_password': 'Taze paroly tassyklap',
+        'auth.reset_password': 'Paroly Tazele',
+        'auth.no_email_notice': 'Bu programmada email iberis yok, token serwer loglary arkaly berilyar.',
+        'auth.back_to_login': 'Yza dolan',
+        'auth.reset_intro': 'Email we taze paroly girizin. Token yok bolsa, ilki token doretmek ucin ugrat.',
+        'auth.reset_token': 'Dikeldis tokeni',
+        'auth.generate_or_reset': 'Token Doret / Tazele',
+        'auth.forgot_intro': 'Gmail/email salgyňyzy giriziň, barlag salgysy ugradylar.',
+        'auth.send_verification': 'Barlag emailini ugrat',
+        'auth.check_email_msg': 'Hasap bar bolsa, barlag emaili ugradyldy.',
+        'auth.email_service_off': 'Serwerde email hyzmaty sazlanmady. Admin bilen habarlaşyň.',
+        'auth.reset_from_email': 'Taze parol doret',
+        'flash.invalid_login': 'Email/ulanyjy ady ya-da parol nadogry.',
+        'flash.email_required': 'Email hokmanydyr.',
+        'flash.new_password_len': 'Taze parol azyndan 6 nyshan bolmaly.',
+        'flash.passwords_mismatch': 'Parollar gabat gelenok.',
+        'flash.no_account_email': 'Bu email bilen hasap tapylmady.',
+        'flash.token_generated': 'Token doredildi: {token}. Ony {minutes} minut icinde ulanyn.',
+        'flash.invalid_token': 'Token nadogry ya-da mohleti gecdi.',
+        'flash.reset_success': 'Parol ustunlikli tazelendi. Taze parol bilen girin.',
+    },
+    'ru': {
+        'nav.search_placeholder': 'Искать что угодно...',
+        'nav.marketplace': 'Маркетплейс',
+        'nav.messages': 'Сообщения',
+        'nav.post_item': 'Добавить товар',
+        'nav.edit_profile': 'Редактировать профиль',
+        'nav.my_listings': 'Мои объявления',
+        'nav.logout': 'Выйти',
+        'nav.login': 'Войти',
+        'nav.signup': 'Регистрация',
+        'lang.label': 'Язык',
+        'market.title': 'Найдите то, что нужно',
+        'market.subtitle': 'Используйте ключевые слова и фильтры по локации для быстрого поиска.',
+        'market.keyword': 'Ключевое слово',
+        'market.keyword_placeholder': 'Камера, инструменты, машина, квартира...',
+        'market.velayat': 'Велаят',
+        'market.district': 'Этрап',
+        'market.neighborhood': 'Район / улица',
+        'market.all_velayats': 'Все велаяты',
+        'market.all_districts': 'Все этрапы',
+        'market.all_neighborhoods': 'Все районы / улицы',
+        'market.all_streets': 'Все улицы / проспекты',
+        'market.search': 'Поиск',
+        'market.clear': 'Сброс',
+        'market.showing': 'Показано {count} объявлений{query_suffix}.',
+        'market.no_results': 'По текущим фильтрам ничего не найдено.',
+        'auth.login_title': 'Безопасный вход',
+        'auth.login_subtitle': 'Введите данные для входа в аккаунт HandShake.',
+        'auth.email_address': 'Email адрес',
+        'auth.password': 'Пароль',
+        'auth.remember_me': 'Запомнить меня',
+        'auth.forgot_password': 'Забыли пароль?',
+        'auth.secure_login': 'Безопасный вход',
+        'auth.no_account': 'Нет аккаунта?',
+        'auth.start_kyc': 'Начать KYC проверку',
+        'auth.recovery_title': 'Безопасное восстановление пароля',
+        'auth.recovery_subtitle': 'Этот процесс требует одноразовый токен. Токен действует 20 минут и используется один раз.',
+        'auth.step1': '1. Запросите токен восстановления',
+        'auth.step2': '2. Сбросьте пароль с токеном',
+        'auth.email_placeholder': 'Email вашего аккаунта',
+        'auth.generate_token': 'Создать токен',
+        'auth.token_placeholder': 'Одноразовый токен',
+        'auth.new_password': 'Новый пароль',
+        'auth.confirm_new_password': 'Подтвердите новый пароль',
+        'auth.reset_password': 'Сбросить пароль',
+        'auth.no_email_notice': 'Почтовый сервис не настроен, поэтому токен передается через логи сервера/админа.',
+        'auth.back_to_login': 'Назад к',
+        'auth.reset_intro': 'Введите email и новый пароль. Если токена нет, отправьте форму один раз для генерации.',
+        'auth.reset_token': 'Токен сброса',
+        'auth.generate_or_reset': 'Создать токен / Сбросить',
+        'auth.forgot_intro': 'Введите Gmail/email, и мы отправим ссылку подтверждения.',
+        'auth.send_verification': 'Отправить письмо',
+        'auth.check_email_msg': 'Если аккаунт существует, письмо подтверждения отправлено.',
+        'auth.email_service_off': 'Почтовый сервис не настроен на сервере. Обратитесь к администратору.',
+        'auth.reset_from_email': 'Создать новый пароль',
+        'flash.invalid_login': 'Неверный email/логин или пароль.',
+        'flash.email_required': 'Требуется email.',
+        'flash.new_password_len': 'Новый пароль должен быть не менее 6 символов.',
+        'flash.passwords_mismatch': 'Пароли не совпадают.',
+        'flash.no_account_email': 'Аккаунт с таким email не найден.',
+        'flash.token_generated': 'Токен создан: {token}. Используйте его в течение {minutes} минут.',
+        'flash.invalid_token': 'Неверный или просроченный токен.',
+        'flash.reset_success': 'Пароль успешно обновлен. Войдите с новым паролем.',
+    },
+}
 
 # Seeded from current official administrative references for Turkmenistan,
 # with Ashgabat streets and avenues taken from official city transport notices.
@@ -177,6 +391,76 @@ def normalize_user_profile_pic(user):
     if not user:
         return
     user.profile_pic = normalize_profile_pic_url(user.profile_pic)
+
+
+def hash_password_reset_token(raw_token):
+    payload = f"{app.secret_key}:{raw_token}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def get_locale():
+    lang = session.get('lang', 'en')
+    return lang if lang in SUPPORTED_LANGUAGES else 'en'
+
+
+def tr(key, **kwargs):
+    locale = get_locale()
+    value = TRANSLATIONS.get(locale, {}).get(key)
+    if value is None:
+        value = TRANSLATIONS['en'].get(key, key)
+    if kwargs:
+        return value.format(**kwargs)
+    return value
+
+
+def is_admin_email(email):
+    normalized = (email or '').strip().lower()
+    return bool(ADMIN_EMAIL) and normalized == ADMIN_EMAIL
+
+
+def get_reset_serializer():
+    return URLSafeTimedSerializer(app.secret_key, salt='password-reset-v1')
+
+
+def build_reset_token(user):
+    serializer = get_reset_serializer()
+    return serializer.dumps({'uid': user.id, 'email': user.email})
+
+
+def verify_reset_token(token, max_age_seconds):
+    serializer = get_reset_serializer()
+    try:
+        return serializer.loads(token, max_age=max_age_seconds)
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+def send_password_reset_email(to_email, reset_link):
+    smtp_host = os.getenv('SMTP_HOST')
+    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_pass = os.getenv('SMTP_PASS')
+    smtp_from = os.getenv('SMTP_FROM') or smtp_user
+    use_tls = os.getenv('SMTP_USE_TLS', 'true').lower() == 'true'
+
+    if not smtp_host or not smtp_user or not smtp_pass or not smtp_from:
+        return False
+
+    msg = EmailMessage()
+    msg['Subject'] = 'HandShake password reset verification'
+    msg['From'] = smtp_from
+    msg['To'] = to_email
+    msg.set_content(
+        f"Open this link to reset your password:\n\n{reset_link}\n\n"
+        f"This link expires in {PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes."
+    )
+
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+        if use_tls:
+            server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+    return True
 
 
 def get_location_tree():
@@ -459,6 +743,17 @@ class User(UserMixin, db.Model):
     sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy=True)
     received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient', lazy=True)
 
+
+class PasswordResetToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship('User', backref='password_reset_tokens')
+
+
 class Item(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
@@ -545,7 +840,21 @@ def inject_chat_request_count():
             recipient_id=current_user.id,
             status='pending'
         ).count()
-    return {'pending_chat_request_count': pending_chat_request_count}
+    return {
+        'pending_chat_request_count': pending_chat_request_count,
+        't': tr,
+        'current_locale': get_locale(),
+        'supported_languages': SUPPORTED_LANGUAGES,
+    }
+
+
+@app.route('/set-language/<lang_code>')
+def set_language(lang_code):
+    code = (lang_code or '').strip().lower()
+    if code in SUPPORTED_LANGUAGES:
+        session['lang'] = code
+    next_url = request.args.get('next') or request.referrer or url_for('index')
+    return redirect(next_url)
 
 # Initialize Database with dummy data
 with app.app_context():
@@ -722,15 +1031,17 @@ def expert_api():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = (request.form.get('email') or '').strip().lower()
+        identity = (request.form.get('email') or '').strip().lower()
         password = request.form.get('password') or ''
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(
+            (User.email == identity) | (User.username == identity)
+        ).first()
         if user and check_password_hash(user.password_hash, password):
             if current_user.is_authenticated:
                 logout_user()
             login_user(user)
             return redirect(url_for('index'))
-        flash('Invalid email or password')
+        flash(tr('flash.invalid_login'))
     elif current_user.is_authenticated:
         flash('Sign in below to switch to another account.')
     return render_template('login.html')
@@ -740,30 +1051,62 @@ def login():
 def forgot_password():
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
-        new_password = request.form.get('new_password') or ''
-        confirm_password = request.form.get('confirm_password') or ''
-
         if not email:
-            flash('Email is required.')
-            return redirect(url_for('forgot_password'))
-        if len(new_password) < 6:
-            flash('New password must be at least 6 characters.')
-            return redirect(url_for('forgot_password'))
-        if new_password != confirm_password:
-            flash('Passwords do not match.')
+            flash(tr('flash.email_required'))
             return redirect(url_for('forgot_password'))
 
         user = User.query.filter_by(email=email).first()
-        if not user:
-            flash('No account found with that email.')
-            return redirect(url_for('forgot_password'))
+        if user:
+            token = build_reset_token(user)
+            reset_link = url_for('reset_password', token=token, _external=True)
+            try:
+                sent = send_password_reset_email(user.email, reset_link)
+            except Exception:
+                sent = False
+                app.logger.exception("Password reset email failed for %s", user.email)
+            if not sent:
+                app.logger.warning("Email service unavailable. Reset link for %s: %s", user.email, reset_link)
+                if ALLOW_LOCAL_RESET_LINK and is_admin_email(user.email):
+                    flash(f"Admin local reset link: {reset_link}")
+                else:
+                    flash(tr('auth.email_service_off'))
+                return redirect(url_for('forgot_password', email=email))
+
+        flash(tr('auth.check_email_msg'))
+        return redirect(url_for('login'))
+
+    prefill_email = (request.args.get('email') or '').strip().lower()
+    return render_template('forgot_password.html', prefill_email=prefill_email)
+
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    payload = verify_reset_token(token, PASSWORD_RESET_TOKEN_TTL_MINUTES * 60)
+    if not payload:
+        flash(tr('flash.invalid_token'))
+        return redirect(url_for('forgot_password'))
+
+    user = User.query.filter_by(id=payload.get('uid'), email=payload.get('email')).first()
+    if not user:
+        flash(tr('flash.no_account_email'))
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'POST':
+        new_password = request.form.get('new_password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
+        if len(new_password) < 6:
+            flash(tr('flash.new_password_len'))
+            return redirect(url_for('reset_password', token=token))
+        if new_password != confirm_password:
+            flash(tr('flash.passwords_mismatch'))
+            return redirect(url_for('reset_password', token=token))
 
         user.password_hash = generate_password_hash(new_password, method='scrypt')
         db.session.commit()
-        flash('Password reset successful. Please sign in with your new password.')
+        flash(tr('flash.reset_success'))
         return redirect(url_for('login'))
 
-    return render_template('forgot_password.html')
+    return render_template('reset_password.html', token=token)
 
 
 @app.route('/register', methods=['GET', 'POST'])

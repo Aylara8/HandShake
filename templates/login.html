@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}HandShake | Secure Login{% endblock %}
+{% block title %}HandShake | {{ t('auth.login_title') }}{% endblock %}
 
 {% block content %}
 <div class="auth-container" style="max-width: 450px; margin: 60px auto;">
@@ -8,40 +8,40 @@
         <div style="background: rgba(16, 185, 129, 0.1); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
             <i class="fas fa-shield-alt" style="color: var(--accent); font-size: 2rem;"></i>
         </div>
-        <h2 style="font-weight: 800; letter-spacing: -1px;">Secure Sign In</h2>
-        <p style="color: var(--text-secondary); margin-bottom: 30px;">Enter your credentials to access your HandShake account.</p>
+        <h2 style="font-weight: 800; letter-spacing: -1px;">{{ t('auth.login_title') }}</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">{{ t('auth.login_subtitle') }}</p>
     </div>
 
     <form class="auth-form" action="/login" method="POST">
         <div class="form-group">
             <div style="position: relative;">
                 <i class="fas fa-envelope" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
-                <input type="email" name="email" placeholder="Email Address" required style="padding-left: 45px;">
+                <input type="text" name="email" placeholder="{{ t('auth.email_address') }}" required style="padding-left: 45px;">
             </div>
         </div>
         <div class="form-group">
             <div style="position: relative;">
                 <i class="fas fa-lock" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
-                <input type="password" name="password" placeholder="Password" required style="padding-left: 45px;">
+                <input type="password" name="password" placeholder="{{ t('auth.password') }}" required style="padding-left: 45px;">
             </div>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.85rem;">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox"> Remember me
+                <input type="checkbox"> {{ t('auth.remember_me') }}
             </label>
-            <a href="{{ url_for('forgot_password') }}" style="color: var(--accent); font-weight: 600;">Forgot password?</a>
+            <a href="{{ url_for('forgot_password') }}" style="color: var(--accent); font-weight: 600;">{{ t('auth.forgot_password') }}</a>
         </div>
 
         <button type="submit" class="auth-btn" style="padding: 16px; font-size: 1.1rem; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-            Secure Login <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
+            {{ t('auth.secure_login') }} <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
         </button>
     </form>
 
     <div class="auth-footer" style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px;">
-        Don't have an account? <a href="/register" style="color: var(--accent); font-weight: 700;">Start KYC Verification</a>
+        {{ t('auth.no_account') }} <a href="/register" style="color: var(--accent); font-weight: 700;">{{ t('auth.start_kyc') }}</a>
     </div>
-    
+
     <div style="margin-top: 20px; text-align: center;">
         <p style="font-size: 0.75rem; color: var(--text-secondary);">
             <i class="fas fa-lock"></i> AES-256 Bit Encryption Active
